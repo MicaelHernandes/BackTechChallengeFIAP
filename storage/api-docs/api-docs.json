@@ -1,0 +1,36 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Oficina Backend API",
+        "description": "Documentacao base da API",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "System"
+                ],
+                "summary": "Health check",
+                "operationId": "12998403a34fef678384d42c5770d204",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "servers": [
+                    {
+                        "url": "http://my-default-host.com",
+                        "description": "Servidor principal"
+                    }
+                ]
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "System",
+            "description": "System"
+        }
+    ]
+}
