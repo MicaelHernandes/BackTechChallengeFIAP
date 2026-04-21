@@ -39,6 +39,7 @@ class StartExecutionUseCase
 
         $previous = $os->getStatus();
         $os->startExecution();
+        $os->markStartedAt(new \DateTimeImmutable());
 
         $saved = $this->osRepository->save($os);
         $this->dispatchOsStatusUpdated($saved, $previous, $this->customerRepository);

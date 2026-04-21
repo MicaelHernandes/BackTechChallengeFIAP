@@ -28,6 +28,7 @@ class FinishExecutionUseCase
 
         $previous = $os->getStatus();
         $os->finishExecution();
+        $os->markFinishedAt(new \DateTimeImmutable());
 
         $saved = $this->osRepository->save($os);
         $this->dispatchOsStatusUpdated($saved, $previous, $this->customerRepository);

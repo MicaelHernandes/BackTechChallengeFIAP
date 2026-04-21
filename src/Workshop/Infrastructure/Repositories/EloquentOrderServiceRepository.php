@@ -45,6 +45,8 @@ class EloquentOrderServiceRepository implements OrderServiceRepositoryInterface
             'vehicle_id'       => $os->getVehicleId(),
             'complaint'        => $os->getComplaint(),
             'mechanic_user_id' => $os->getMechanicUserId(),
+            'started_at'       => $os->getStartedAt()?->format('Y-m-d H:i:s'),
+            'finished_at'      => $os->getFinishedAt()?->format('Y-m-d H:i:s'),
         ];
 
         if ($os->getId() !== null) {
@@ -110,6 +112,12 @@ class EloquentOrderServiceRepository implements OrderServiceRepositoryInterface
             vehicleId: $model->vehicle_id,
             complaint: $model->complaint,
             mechanicUserId: $model->mechanic_user_id,
+            startedAt: $model->started_at
+                ? \DateTimeImmutable::createFromMutable($model->started_at->toDateTime())
+                : null,
+            finishedAt: $model->finished_at
+                ? \DateTimeImmutable::createFromMutable($model->finished_at->toDateTime())
+                : null,
         );
 
         if ($model->budget) {

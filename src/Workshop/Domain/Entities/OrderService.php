@@ -25,6 +25,8 @@ class OrderService
         private readonly int $vehicleId,
         private string $complaint,
         private ?int $mechanicUserId,
+        private ?\DateTimeImmutable $startedAt = null,
+        private ?\DateTimeImmutable $finishedAt = null,
     ) {}
 
     public static function create(
@@ -51,6 +53,8 @@ class OrderService
     public function getVehicleId(): int { return $this->vehicleId; }
     public function getComplaint(): string { return $this->complaint; }
     public function getMechanicUserId(): ?int { return $this->mechanicUserId; }
+    public function getStartedAt(): ?\DateTimeImmutable { return $this->startedAt; }
+    public function getFinishedAt(): ?\DateTimeImmutable { return $this->finishedAt; }
     public function getBudget(): ?Budget { return $this->budget; }
 
     /** @return OsServiceItem[] */
@@ -65,6 +69,8 @@ class OrderService
     public function setServiceItems(array $items): void { $this->serviceItems = $items; }
     public function setPartItems(array $items): void { $this->partItems = $items; }
     public function assignMechanic(int $mechanicUserId): void { $this->mechanicUserId = $mechanicUserId; }
+    public function markStartedAt(\DateTimeImmutable $at): void { $this->startedAt = $at; }
+    public function markFinishedAt(\DateTimeImmutable $at): void { $this->finishedAt = $at; }
 
     // ── State machine ─────────────────────────────────────────────────
 

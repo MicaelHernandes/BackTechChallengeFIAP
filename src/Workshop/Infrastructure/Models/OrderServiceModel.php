@@ -19,6 +19,13 @@ class OrderServiceModel extends Model
         'vehicle_id',
         'complaint',
         'mechanic_user_id',
+        'started_at',
+        'finished_at',
+    ];
+
+    protected $casts = [
+        'started_at'  => 'datetime',
+        'finished_at' => 'datetime',
     ];
 
     public function budget(): HasOne
