@@ -1,58 +1,433 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Oficina Mecânica — API Backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API RESTful para gerenciamento completo de uma oficina mecânica, desenvolvida com **Laravel 13**, arquitetura **Domain-Driven Design (DDD)** e banco de dados **PostgreSQL**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Sumário
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- [Objetivos do Projeto](#objetivos-do-projeto)
+- [Tecnologias Utilizadas](#tecnologias-utilizadas)
+- [Arquitetura](#arquitetura)
+- [Módulos e Funcionalidades](#módulos-e-funcionalidades)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação e Configuração](#instalação-e-configuração)
+- [Executando os Testes](#executando-os-testes)
+- [Documentação da API (Swagger)](#documentação-da-api-swagger)
+- [Credenciais de Acesso](#credenciais-de-acesso)
+- [Fluxo Principal — Ordem de Serviço](#fluxo-principal--ordem-de-serviço)
+- [Endpoints Disponíveis](#endpoints-disponíveis)
+- [Estrutura de Pastas](#estrutura-de-pastas)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Objetivos do Projeto
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+O sistema atende ao ciclo de vida completo de uma oficina mecânica, desde o cadastro de clientes até a entrega do veículo reparado, cobrindo:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- **Gestão de clientes e veículos** com validação de CPF/CNPJ e placa
+- **Catálogo de peças e serviços** com controle de estoque mínimo
+- **Controle de estoque** via solicitações de compra com máquina de estados
+- **Ordens de Serviço** com ciclo completo de 9 estados, orçamento e aprovação do cliente
+- **Notificações por e-mail** automáticas a cada mudança de status
+- **Rastreamento público** da OS sem necessidade de login
+- **Relatórios gerenciais**: resumo de OS, receita por período, estoque baixo e tempo médio de execução
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+---
 
-## Agentic Development
+## Tecnologias Utilizadas
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+| Camada | Tecnologia |
+|---|---|
+| Framework | Laravel 13 |
+| Linguagem | PHP 8.3+ |
+| Banco de dados | PostgreSQL (produção) / SQLite (testes) |
+| Autenticação | Laravel Sanctum (tokens Bearer) |
+| Testes | Pest PHP 4 |
+| Documentação | Swagger via `l5-swagger` (atributos PHP 8) |
+| E-mail | SMTP / Mailpit (desenvolvimento) |
+| Arquitetura | Domain-Driven Design (DDD) |
 
-```bash
-composer require laravel/boost --dev
+---
 
-php artisan boost:install
+## Arquitetura
+
+O projeto adota DDD com separação em **Bounded Contexts** dentro de `src/`. Cada contexto segue a estrutura de camadas:
+
+```
+src/
+└── <Contexto>/
+    ├── Domain/
+    │   ├── Entities/        # Entidades e Agregados
+    │   ├── Enums/           # Máquinas de estado (enum PHP 8)
+    │   ├── Events/          # Eventos de domínio
+    │   ├── Repositories/    # Interfaces de repositório
+    │   └── ValueObjects/    # Objetos de valor
+    ├── Application/
+    │   ├── DTOs/            # Objetos de transferência
+    │   ├── Mail/            # Mailables
+    │   ├── Policies/        # Handlers de eventos (listeners)
+    │   └── UseCases/        # Casos de uso (um por operação)
+    └── Infrastructure/
+        ├── Models/          # Modelos Eloquent
+        ├── Repositories/    # Implementações Eloquent
+        └── Presentation/
+            ├── Controllers/ # Controllers com Swagger
+            ├── Requests/    # Form Requests (validação)
+            └── Resources/   # API Resources (resposta)
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+**Decisões de design:**
+- Repositórios são interfaces no domínio, implementados na infraestrutura e ligados via `DomainServiceProvider`
+- Eventos de domínio (`Event::dispatch`) desacoplam regras de negócio de efeitos colaterais (e-mails, atualização de estoque)
+- Máquinas de estado como enums PHP 8.1+ com `allowedTransitions()` e `guardTransitionTo()` que lançam `DomainException` em transições inválidas
+- Cada Use Case faz exatamente uma operação, facilitando testes unitários
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Módulos e Funcionalidades
 
-## Code of Conduct
+### Auth
+- Login/logout com token Bearer (Sanctum)
+- 5 papéis: `admin`, `attendant`, `mechanic`, `storekeeper`, `purchasing`
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Customer — Clientes e Veículos
+- CRUD completo de clientes com validação de CPF/CNPJ
+- CRUD de veículos vinculados (placa, marca, modelo, ano, cor)
+- Value Objects `CpfCnpj` e `LicensePlate` com validação de formato
 
-## Security Vulnerabilities
+### Catalog — Catálogo
+- CRUD de **peças** com estoque atual, estoque mínimo, unidade e preço
+- CRUD de **serviços** com duração estimada e ativação/desativação
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Inventory — Controle de Estoque
+Solicitações de peças com máquina de 7 estados:
 
-## License
+```
+received → reserved          (estoque disponível: decrementa imediatamente)
+received → out_of_stock      (sem estoque: inicia fluxo de compra)
+          → purchasing
+          → available_for_pickup   (estoque incrementado ao receber do fornecedor)
+          → picked_up
+          → finalized
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- Ao criar: verifica estoque automaticamente e encaminha para o estado correto
+- Ao receber do fornecedor: adiciona quantidade ao estoque via evento `PartsReceivedFromSupplierEvent`
+- E-mail automático para Compras quando há falta de estoque
+- E-mail automático para Mecânico quando peças ficam disponíveis
+
+### Workshop — Ordens de Serviço
+Máquina de 9 estados com regras de negócio em cada transição:
+
+```
+created → in_analysis → pending_approval ⇄ in_renegotiation
+                                        ↓
+                                     approved → in_execution → execution_finished → delivered_and_finalized
+                                        ↓
+                                     rejected
+```
+
+- Geração de orçamento com itens de serviço e peças (snapshots de preço)
+- Aprovação/rejeição pelo cliente com ciclo de renegociação
+- Guard de execução: bloqueia `start_execution` se há peças sem estoque ou solicitações pendentes
+- E-mail ao cliente a cada mudança de status com mensagem personalizada
+- Timestamps `started_at` / `finished_at` para mensuração de tempo de execução
+
+### Reports — Relatórios
+- **Resumo de OS**: contagem por status + receita finalizada/pendente
+- **Receita por período**: filtro por data com totais e entradas detalhadas
+- **Estoque baixo**: peças abaixo do estoque mínimo com déficit calculado
+- **Tempo médio de execução**: média geral e por mecânico em formato legível (ex: `3h 7min`)
+
+### Rastreamento Público
+- `GET /api/public/track/{id}` — sem autenticação
+- Exibe status, mensagem ao cliente, veículo e nome do cliente
+- Não expõe valores financeiros do orçamento
+
+---
+
+## Pré-requisitos
+
+- PHP 8.3+
+- Composer
+- PostgreSQL 14+ (ou SQLite para rodar localmente sem configuração)
+- (Opcional) Mailpit para visualizar e-mails em desenvolvimento
+
+---
+
+## Instalação e Configuração
+
+### 1. Clonar e instalar dependências
+
+```bash
+git clone <url-do-repositório>
+cd oficina-backend
+composer install
+```
+
+### 2. Configurar o ambiente
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+### 3. Configurar banco de dados no `.env`
+
+**Opção A — PostgreSQL (recomendado):**
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=oficina
+DB_USERNAME=seu_usuario
+DB_PASSWORD=sua_senha
+```
+
+**Opção B — SQLite (sem instalação adicional):**
+```env
+DB_CONNECTION=sqlite
+# o arquivo será criado automaticamente em database/database.sqlite
+```
+
+### 4. Configurar e-mail (opcional — desenvolvimento)
+
+Com Mailpit rodando localmente:
+```env
+MAIL_MAILER=smtp
+MAIL_HOST=127.0.0.1
+MAIL_PORT=1025
+MAIL_FROM_ADDRESS="oficina@sistema.com"
+MAIL_FROM_NAME="Oficina Mecânica"
+```
+
+Sem Mailpit (logs no arquivo):
+```env
+MAIL_MAILER=log
+```
+
+### 5. Executar migrations e seeders
+
+```bash
+php artisan migrate
+php artisan db:seed
+```
+
+### 6. Iniciar o servidor
+
+```bash
+php artisan serve
+```
+
+A API estará disponível em `http://localhost:8000`.
+
+---
+
+## Executando os Testes
+
+O projeto usa **Pest PHP** com banco SQLite em memória (sem necessidade de banco separado para testes):
+
+```bash
+./vendor/bin/pest
+```
+
+Para ver detalhes por arquivo:
+```bash
+./vendor/bin/pest --verbose
+```
+
+### Suíte de testes
+
+| Arquivo | Tipo | Casos |
+|---|---|---|
+| `Feature/Auth/AuthTest` | Feature | 6 |
+| `Feature/Customer/CustomerApiTest` | Feature | 11 |
+| `Feature/Customer/VehicleApiTest` | Feature | 6 |
+| `Feature/Catalog/PartApiTest` | Feature | 9 |
+| `Feature/Inventory/PartRequestApiTest` | Feature | 15 |
+| `Feature/Workshop/OrderServiceApiTest` | Feature | 14 |
+| `Feature/Workshop/PublicOsTrackingTest` | Feature | 6 |
+| `Feature/Reports/ReportApiTest` | Feature | 8 |
+| `Unit/Customer/CpfCnpjTest` | Unit | 8 |
+| `Unit/Customer/LicensePlateTest` | Unit | 5 |
+| `Unit/Inventory/PartRequestStatusTest` | Unit | 11 |
+| `Unit/Workshop/OsStatusTest` | Unit | 15 |
+
+---
+
+## Documentação da API (Swagger)
+
+Após iniciar o servidor, acesse:
+
+```
+http://localhost:8000/api/documentation
+```
+
+Para regenerar a documentação após alterações:
+```bash
+php artisan l5-swagger:generate
+```
+
+---
+
+## Credenciais de Acesso
+
+Após executar `php artisan db:seed`, os seguintes usuários estarão disponíveis:
+
+| Papel | E-mail | Senha |
+|---|---|---|
+| Administrador | `admin@oficina.com` | `password` |
+| Atendente | `atendente@oficina.com` | `password` |
+| Mecânico | `mecanico@oficina.com` | `password` |
+| Almoxarife | `almoxarife@oficina.com` | `password` |
+| Compras | `compras@oficina.com` | `password` |
+
+**Autenticação:** todas as rotas protegidas requerem o header:
+```
+Authorization: Bearer {token}
+```
+
+O token é obtido via `POST /api/auth/login`.
+
+---
+
+## Fluxo Principal — Ordem de Serviço
+
+Exemplo de ciclo completo via API:
+
+```
+1. POST /api/auth/login                                    → obtém token
+
+2. POST /api/customers                                     → cria cliente
+3. POST /api/customers/{id}/vehicles                       → cadastra veículo
+
+4. POST /api/parts                                         → cadastra peça (catálogo)
+5. POST /api/services                                      → cadastra serviço (catálogo)
+
+6. POST /api/order-services                                → abre OS (status: created)
+7. POST /api/order-services/{id}/send-to-analysis          → status: in_analysis
+8. POST /api/order-services/{id}/generate-budget           → gera orçamento (status: pending_approval)
+   body: { "services": [...], "parts": [...] }
+
+9. POST /api/order-services/{id}/approve-budget            → status: approved
+
+   [Se faltar peças em estoque:]
+10. POST /api/part-requests                                → cria solicitação vinculada à OS
+    body: { "os_id": X, "items": [{ "part_id": Y, "quantity": Z }] }
+11. POST /api/part-requests/{id}/request-purchase          → status: purchasing
+12. POST /api/part-requests/{id}/receive-from-supplier     → status: available_for_pickup
+    body: { "supplier_name": "...", "items": [...] }
+13. POST /api/part-requests/{id}/pick-up                   → status: picked_up
+
+14. POST /api/order-services/{id}/start-execution          → status: in_execution
+15. POST /api/order-services/{id}/finish-execution         → status: execution_finished
+16. POST /api/order-services/{id}/deliver                  → status: delivered_and_finalized
+
+17. GET  /api/reports/avg-execution-time                   → tempo médio de execução
+```
+
+---
+
+## Endpoints Disponíveis
+
+### Auth
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/api/auth/login` | Login — retorna token Bearer |
+| POST | `/api/auth/logout` | Logout (invalida token) |
+| GET  | `/api/auth/me` | Dados do usuário autenticado |
+
+### Clientes
+| Método | Rota | Descrição |
+|---|---|---|
+| GET    | `/api/customers` | Lista paginada |
+| POST   | `/api/customers` | Cria cliente |
+| GET    | `/api/customers/{id}` | Detalhe |
+| PUT    | `/api/customers/{id}` | Atualiza |
+| DELETE | `/api/customers/{id}` | Remove (soft delete) |
+| GET    | `/api/customers/{id}/vehicles` | Veículos do cliente |
+| POST   | `/api/customers/{id}/vehicles` | Adiciona veículo |
+| PUT    | `/api/vehicles/{id}` | Atualiza veículo |
+| DELETE | `/api/vehicles/{id}` | Remove veículo |
+
+### Catálogo
+| Método | Rota | Descrição |
+|---|---|---|
+| GET/POST | `/api/parts` | Lista / cria peças |
+| GET/PUT/DELETE | `/api/parts/{id}` | Detalhe / atualiza / remove |
+| GET/POST | `/api/services` | Lista / cria serviços |
+| GET/PUT/DELETE | `/api/services/{id}` | Detalhe / atualiza / remove |
+
+### Estoque
+| Método | Rota | Descrição |
+|---|---|---|
+| GET  | `/api/part-requests` | Lista (filtro por status via `?status=`) |
+| POST | `/api/part-requests` | Cria solicitação |
+| GET  | `/api/part-requests/{id}` | Detalhe |
+| POST | `/api/part-requests/{id}/request-purchase` | Encaminha para compra |
+| POST | `/api/part-requests/{id}/receive-from-supplier` | Registra recebimento do fornecedor |
+| POST | `/api/part-requests/{id}/pick-up` | Mecânico retira peças |
+| POST | `/api/part-requests/{id}/finish` | Finaliza solicitação |
+
+### Ordens de Serviço
+| Método | Rota | Descrição |
+|---|---|---|
+| GET  | `/api/order-services` | Lista (filtro por status via `?status=`) |
+| POST | `/api/order-services` | Abre nova OS |
+| GET  | `/api/order-services/{id}` | Detalhe completo com orçamento |
+| POST | `/api/order-services/{id}/send-to-analysis` | Inicia análise |
+| POST | `/api/order-services/{id}/generate-budget` | Gera orçamento |
+| POST | `/api/order-services/{id}/approve-budget` | Aprova orçamento |
+| POST | `/api/order-services/{id}/reject-budget` | Rejeita orçamento (inicia renegociação) |
+| POST | `/api/order-services/{id}/approve-renegotiation` | Aprova nova proposta |
+| POST | `/api/order-services/{id}/reject-renegotiation` | Cancela OS |
+| POST | `/api/order-services/{id}/start-execution` | Inicia execução |
+| POST | `/api/order-services/{id}/finish-execution` | Conclui execução |
+| POST | `/api/order-services/{id}/deliver` | Entrega e finaliza |
+
+### Relatórios
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/reports/os-summary` | Contagem por status e receita |
+| GET | `/api/reports/revenue` | Receita por período (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
+| GET | `/api/reports/low-stock` | Peças abaixo do estoque mínimo |
+| GET | `/api/reports/avg-execution-time` | Tempo médio de execução por mecânico |
+
+### Público (sem autenticação)
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/public/track/{id}` | Rastreamento da OS pelo cliente |
+
+---
+
+## Estrutura de Pastas
+
+```
+oficina-backend/
+├── app/
+│   ├── Enums/UserRole.php               # Papéis de usuário
+│   ├── Http/
+│   │   ├── Controllers/Auth/            # Controller de autenticação
+│   │   └── Middleware/ForceJsonResponse # Força Content-Type JSON
+│   ├── Models/User.php
+│   └── Providers/DomainServiceProvider  # Bindings DI + Event listeners
+├── database/
+│   ├── migrations/                      # 13 migrations versionadas
+│   └── seeders/                         # Dados iniciais (users, catalog, customers)
+├── resources/views/mail/                # Templates de e-mail Blade
+│   ├── inventory/
+│   └── workshop/
+├── routes/api.php                       # Todas as rotas da API
+├── src/                                 # Domínio DDD
+│   ├── Core/                            # Exceções e Value Objects base
+│   ├── Customer/                        # Bounded Context: Clientes
+│   ├── Catalog/                         # Bounded Context: Catálogo
+│   ├── Inventory/                       # Bounded Context: Estoque
+│   ├── Workshop/                        # Bounded Context: Oficina
+│   └── Reports/                         # Relatórios gerenciais
+├── tests/
+│   ├── Feature/                         # Testes de integração HTTP
+│   └── Unit/                            # Testes de unidade (domínio puro)
+└── storage/api-docs/api-docs.json       # Spec OpenAPI gerada
+```
