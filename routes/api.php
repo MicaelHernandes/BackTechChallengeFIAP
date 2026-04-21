@@ -66,8 +66,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reports
     Route::prefix('reports')->group(function () {
-        Route::get('/os-summary', [ReportController::class, 'osSummary']);
-        Route::get('/revenue',    [ReportController::class, 'revenue']);
-        Route::get('/low-stock',  [ReportController::class, 'lowStock']);
+        Route::get('/os-summary',          [ReportController::class, 'osSummary']);
+        Route::get('/revenue',             [ReportController::class, 'revenue']);
+        Route::get('/low-stock',           [ReportController::class, 'lowStock']);
+        Route::get('/avg-execution-time',  [ReportController::class, 'avgExecutionTime']);
     });
 });

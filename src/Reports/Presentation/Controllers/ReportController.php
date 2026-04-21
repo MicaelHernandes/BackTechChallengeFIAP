@@ -109,6 +109,70 @@ class ReportController extends Controller
         ]);
     }
 
+    // ── Average execution time ────────────────────────────────────────────
+
+    #[OA\Get(
+        path: '/api/reports/avg-execution-time',
+        summary: 'Tempo médio de execução das OS (do início ao fim da execução)',
+        security: [['sanctum' => []]],
+        tags: ['Reports'],
+        responses: [new OA\Response(response: 200, description: 'Tempo médio de execução')]
+    )]
+    public function avgExecutionTime(): JsonResponse
+    {
+        $rows = OrderServiceModel::query()
+            ->whereNotNull('started_at')
+            ->whereNotNull('finished_at')
+            ->select('id', 'mechanic_user_id', 'started_at', 'finished_at')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return response()->json([
+                'data' => [
+                    'os_count'            => 0,
+                    'avg_minutes'         => null,
+                    'avg_human'           => null,
+                    'by_mechanic'         => [],
+                ],
+            ]);
+        }
+
+        $minutes = $rows->map(fn ($r) =>
+            $r->started_at->diffInMinutes($r->finished_at)
+        );
+
+        $byMechanic = $rows->groupBy('mechanic_user_id')->map(function ($group) {
+            $avg = $group->avg(fn ($r) => $r->started_at->diffInMinutes($r->finished_at));
+            return [
+                'mechanic_user_id' => $group->first()->mechanic_user_id,
+                'os_count'         => $group->count(),
+                'avg_minutes'      => round($avg),
+                'avg_human'        => $this->minutesToHuman(round($avg)),
+            ];
+        })->values();
+
+        $avgTotal = round($minutes->avg());
+
+        return response()->json([
+            'data' => [
+                'os_count'    => $rows->count(),
+                'avg_minutes' => $avgTotal,
+                'avg_human'   => $this->minutesToHuman($avgTotal),
+                'by_mechanic' => $byMechanic,
+            ],
+        ]);
+    }
+
+    private function minutesToHuman(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return "{$minutes}min";
+        }
+        $h = intdiv($minutes, 60);
+        $m = $minutes % 60;
+        return $m > 0 ? "{$h}h {$m}min" : "{$h}h";
+    }
+
     // ── Low stock ─────────────────────────────────────────────────────────
 
     #[OA\Get(
