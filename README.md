@@ -149,92 +149,85 @@ created → in_analysis → pending_approval ⇄ in_renegotiation
 
 ## Pré-requisitos
 
-- PHP 8.3+
-- Composer
-- PostgreSQL 14+ (ou SQLite para rodar localmente sem configuração)
-- (Opcional) Mailpit para visualizar e-mails em desenvolvimento
+- **Docker** e **Docker Compose** (única dependência necessária)
+
+O projeto usa **Laravel Sail**, que sobe automaticamente os containers de PHP 8.3, PostgreSQL e Mailpit sem nenhuma instalação adicional.
 
 ---
 
 ## Instalação e Configuração
 
-### 1. Clonar e instalar dependências
+### 1. Clonar o repositório
 
 ```bash
 git clone <url-do-repositório>
 cd oficina-backend
-composer install
 ```
 
-### 2. Configurar o ambiente
+### 2. Instalar dependências via Docker (sem PHP local)
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" \
+    -v "$(pwd):/var/www/html" \
+    -w /var/www/html \
+    laravelsail/php83-composer:latest \
+    composer install --ignore-platform-reqs
+```
+
+### 3. Configurar o ambiente
 
 ```bash
 cp .env.example .env
-php artisan key:generate
 ```
 
-### 3. Configurar banco de dados no `.env`
+> O `.env.example` já vem pré-configurado para o Sail (PostgreSQL + Mailpit). Nenhuma edição necessária.
 
-**Opção A — PostgreSQL (recomendado):**
-```env
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=oficina
-DB_USERNAME=seu_usuario
-DB_PASSWORD=sua_senha
-```
-
-**Opção B — SQLite (sem instalação adicional):**
-```env
-DB_CONNECTION=sqlite
-# o arquivo será criado automaticamente em database/database.sqlite
-```
-
-### 4. Configurar e-mail (opcional — desenvolvimento)
-
-Com Mailpit rodando localmente:
-```env
-MAIL_MAILER=smtp
-MAIL_HOST=127.0.0.1
-MAIL_PORT=1025
-MAIL_FROM_ADDRESS="oficina@sistema.com"
-MAIL_FROM_NAME="Oficina Mecânica"
-```
-
-Sem Mailpit (logs no arquivo):
-```env
-MAIL_MAILER=log
-```
-
-### 5. Executar migrations e seeders
+### 4. Subir os containers
 
 ```bash
-php artisan migrate
-php artisan db:seed
+./vendor/bin/sail up -d
 ```
 
-### 6. Iniciar o servidor
+Aguarde os containers iniciarem (na primeira vez faz o build da imagem, ~1 minuto).
+
+### 5. Gerar a chave e executar migrations + seeders
 
 ```bash
-php artisan serve
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed
 ```
 
-A API estará disponível em `http://localhost:8000`.
+### 6. Pronto!
+
+| Serviço | URL |
+|---|---|
+| API | `http://localhost` |
+| Documentação Swagger | `http://localhost/api/documentation` |
+| Mailpit (caixa de e-mails) | `http://localhost:8025` |
+
+Para parar os containers:
+```bash
+./vendor/bin/sail down
+```
 
 ---
 
 ## Executando os Testes
 
-O projeto usa **Pest PHP** com banco SQLite em memória (sem necessidade de banco separado para testes):
+Os testes usam **SQLite em memória** — não dependem do PostgreSQL e podem rodar a qualquer momento:
 
 ```bash
-./vendor/bin/pest
+./vendor/bin/sail artisan test
+```
+
+Ou diretamente com Pest:
+```bash
+./vendor/bin/sail exec laravel.test ./vendor/bin/pest
 ```
 
 Para ver detalhes por arquivo:
 ```bash
-./vendor/bin/pest --verbose
+./vendor/bin/sail artisan test --verbose
 ```
 
 ### Suíte de testes
@@ -258,22 +251,22 @@ Para ver detalhes por arquivo:
 
 ## Documentação da API (Swagger)
 
-Após iniciar o servidor, acesse:
+Após subir o Sail, acesse:
 
 ```
-http://localhost:8000/api/documentation
+http://localhost/api/documentation
 ```
 
 Para regenerar a documentação após alterações:
 ```bash
-php artisan l5-swagger:generate
+./vendor/bin/sail artisan l5-swagger:generate
 ```
 
 ---
 
 ## Credenciais de Acesso
 
-Após executar `php artisan db:seed`, os seguintes usuários estarão disponíveis:
+Após executar `./vendor/bin/sail artisan migrate --seed`, os seguintes usuários estarão disponíveis:
 
 | Papel | E-mail | Senha |
 |---|---|---|
