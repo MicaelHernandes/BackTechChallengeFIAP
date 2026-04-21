@@ -1482,6 +1482,25 @@
                 ]
             }
         },
+        "/api/reports/avg-execution-time": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Tempo médio de execução das OS (do início ao fim da execução)",
+                "operationId": "a5dfe0490c6f54432cf43e49050d1f6e",
+                "responses": {
+                    "200": {
+                        "description": "Tempo médio de execução"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/api/reports/low-stock": {
             "get": {
                 "tags": [
