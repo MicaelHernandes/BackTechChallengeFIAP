@@ -160,8 +160,8 @@ O projeto usa **Laravel Sail**, que sobe automaticamente os containers de PHP 8.
 ### 1. Clonar o repositório
 
 ```bash
-git clone <url-do-repositório>
-cd oficina-backend
+git clone https://github.com/MicaelHernandes/BackTechChallengeFIAP
+cd BackTechChallengeFIAP
 ```
 
 ### 2. Instalar dependências via Docker (sem PHP local)
@@ -170,7 +170,7 @@ cd oficina-backend
 docker run --rm -u "$(id -u):$(id -g)" \
     -v "$(pwd):/var/www/html" \
     -w /var/www/html \
-    laravelsail/php83-composer:latest \
+    laravelsail/php84-composer:latest \
     composer install --ignore-platform-reqs
 ```
 
@@ -397,7 +397,7 @@ Exemplo de ciclo completo via API:
 ## Estrutura de Pastas
 
 ```
-oficina-backend/
+BackTechChallengeFIAP/
 ├── app/
 │   ├── Enums/UserRole.php               # Papéis de usuário
 │   ├── Http/
