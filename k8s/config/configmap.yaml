@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laravel-config
+  namespace: laravel
+data:
+  APP_NAME: "Oficina"
+  APP_ENV: "production"
+  APP_PORT: "80"
+  VITE_PORT: "5173"
+  LARAVEL_SAIL: "1"
+  XDEBUG_MODE: "off"
+  XDEBUG_CONFIG: "client_host=host.docker.internal"
+
+  # Database
+  DB_CONNECTION: "pgsql"
+  DB_HOST: "pgsql"
+  DB_PORT: "5432"
+  DB_DATABASE: "laravel"
+  DB_USERNAME: "laravel"
+
+  # Redis
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # Mail (Mailpit)
+  MAIL_MAILER: "smtp"
+  MAIL_HOST: "mailpit"
+  MAIL_PORT: "1025"
+  MAIL_FROM_ADDRESS: "hello@example.com"
+  MAIL_FROM_NAME: "Laravel"
+
+  # MinIO (S3-compatible)
+  FILESYSTEM_DISK: "s3"
+  AWS_ENDPOINT: "http://minio:9000"
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_BUCKET: "laravel"
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"

@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgsql-pvc
+  namespace: laravel
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: standard  # Ajuste conforme seu cluster
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pgsql
+  namespace: laravel
+  labels:
+    app: pgsql
+spec:
+  serviceName: pgsql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgsql
+  template:
+    metadata:
+      labels:
+        app: pgsql
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: DB_DATABASE
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: DB_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secrets
+                  key: DB_PASSWORD
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secrets
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: pgsql-data
+              mountPath: /var/lib/postgresql
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -q
+                - -U
+                - laravel
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -q
+                - -U
+                - laravel
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: pgsql-data
+          persistentVolumeClaim:
+            claimName: pgsql-pvc
+        - name: init-scripts
+          configMap:
+            name: pgsql-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgsql
+  namespace: laravel
+  labels:
+    app: pgsql
+spec:
+  selector:
+    app: pgsql
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  clusterIP: None  # Headless service para StatefulSet
+---
+# Script de criação do banco de testes
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgsql-init-scripts
+  namespace: laravel
+data:
+  10-create-testing-database.sql: |
+    SELECT 'CREATE DATABASE laravel_testing'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'laravel_testing')\gexec
+    GRANT ALL PRIVILEGES ON DATABASE laravel_testing TO laravel;

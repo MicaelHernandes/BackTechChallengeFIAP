@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-queue
+  namespace: laravel
+  labels:
+    app: laravel-queue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: laravel-queue
+  template:
+    metadata:
+      labels:
+        app: laravel-queue
+    spec:
+      containers:
+        - name: queue-worker
+          image: backtechchallenge/laravel-app:local  # Mesma imagem da aplicação
+          imagePullPolicy: IfNotPresent
+          command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600"]
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+            - secretRef:
+                name: laravel-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            exec:
+              command:
+                - php
+                - artisan
+                - queue:monitor
+                - --max=100
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3

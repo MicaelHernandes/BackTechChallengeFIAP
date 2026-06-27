@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: laravel
+
+resources:
+  # Namespace
+  - namespace.yaml
+
+  # Configurações
+  - config/configmap.yaml
+  - config/secret.yaml
+
+  # Banco de dados
+  - pgsql/statefulset.yaml
+
+  # Cache / Queues
+  - redis/deployment.yaml
+
+  # Mail (dev/staging)
+  - mailpit/deployment.yaml
+
+  # Object Storage
+  - minio/statefulset.yaml
+
+  # Aplicação Laravel
+  - app/deployment.yaml
+  - app/service.yaml
+  - app/queue-worker.yaml
+  - app/scheduler.yaml
+
+  # Nginx reverse proxy para acesso via Node IP:80
+  - nginx/deployment.yaml

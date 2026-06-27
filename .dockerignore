@@ -1,0 +1,15 @@
+.git
+.idea
+.junie
+node_modules
+vendor
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/testing
+storage/framework/views
