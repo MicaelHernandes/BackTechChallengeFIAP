@@ -9,23 +9,23 @@ describe('Public OS Tracking', function () {
     function makeOs(string $status = 'created'): array
     {
         $customer = CustomerModel::create([
-            'name'     => 'Cliente Público',
+            'name' => 'Cliente Público',
             'document' => '52998224725',
-            'email'    => 'pub@test.com',
+            'email' => 'pub@test.com',
         ]);
         $vehicle = VehicleModel::create([
             'customer_id' => $customer->id,
-            'plate'       => 'PUB-0001',
-            'brand'       => 'Fiat',
-            'model'       => 'Strada',
-            'year'        => 2023,
-            'color'       => 'Vermelho',
+            'plate' => 'PUB-0001',
+            'brand' => 'Fiat',
+            'model' => 'Strada',
+            'year' => 2023,
+            'color' => 'Vermelho',
         ]);
         $os = OrderServiceModel::create([
-            'status'      => $status,
+            'status' => $status,
             'customer_id' => $customer->id,
-            'vehicle_id'  => $vehicle->id,
-            'complaint'   => 'Revisão geral',
+            'vehicle_id' => $vehicle->id,
+            'complaint' => 'Revisão geral',
         ]);
 
         return [$os, $customer, $vehicle];
@@ -40,9 +40,31 @@ describe('Public OS Tracking', function () {
         expect($response->json('data.os_id'))->toBe($os->id);
         expect($response->json('data.status'))->toBe('in_analysis');
         expect($response->json('data.status_label'))->toBe('Em Análise');
+        expect($response->json('data.public_status.value'))->toBe('diagnostico');
+        expect($response->json('data.public_status.label'))->toBe('Em Diagnóstico');
         expect($response->json('data.customer_name'))->toBe('Cliente Público');
         expect($response->json('data.vehicle'))->toContain('PUB-0001');
         expect($response->json('data.is_finalized'))->toBeFalse();
+    });
+
+    it('maps created to the recebida public status', function () {
+        [$os] = makeOs('created');
+        expect($this->getJson("/api/public/track/{$os->id}")->json('data.public_status.value'))->toBe('recebida');
+    });
+
+    it('maps pending_approval to the aguardando_aprovacao public status', function () {
+        [$os] = makeOs('pending_approval');
+        expect($this->getJson("/api/public/track/{$os->id}")->json('data.public_status.value'))->toBe('aguardando_aprovacao');
+    });
+
+    it('maps in_execution to the execucao public status', function () {
+        [$os] = makeOs('in_execution');
+        expect($this->getJson("/api/public/track/{$os->id}")->json('data.public_status.value'))->toBe('execucao');
+    });
+
+    it('maps delivered_and_finalized to the entregue public status', function () {
+        [$os] = makeOs('delivered_and_finalized');
+        expect($this->getJson("/api/public/track/{$os->id}")->json('data.public_status.value'))->toBe('entregue');
     });
 
     it('returns correct message for each status', function () {

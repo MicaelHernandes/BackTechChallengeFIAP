@@ -2,6 +2,7 @@
 
 use Domain\Core\Domain\Exceptions\DomainException;
 use Domain\Workshop\Domain\Enums\OsStatus;
+use Domain\Workshop\Domain\Enums\PublicOsStatus;
 
 describe('OsStatus state machine', function () {
 
@@ -97,5 +98,42 @@ describe('OsStatus state machine', function () {
         foreach (OsStatus::cases() as $status) {
             expect($status->customerNotificationMessage())->toBeString()->not->toBeEmpty();
         }
+    });
+
+    // ── Public status mapping ────────────────────────────────────────────
+
+    it('maps each internal status to the correct public status', function () {
+        $expected = [
+            'created' => PublicOsStatus::Recebida,
+            'in_analysis' => PublicOsStatus::Diagnostico,
+            'pending_approval' => PublicOsStatus::AguardandoAprovacao,
+            'in_renegotiation' => PublicOsStatus::AguardandoAprovacao,
+            'approved' => PublicOsStatus::Execucao,
+            'in_execution' => PublicOsStatus::Execucao,
+            'execution_finished' => PublicOsStatus::Finalizada,
+            'delivered_and_finalized' => PublicOsStatus::Entregue,
+            'rejected' => PublicOsStatus::Entregue,
+        ];
+
+        foreach (OsStatus::cases() as $status) {
+            expect($status->toPublicStatus())->toBe($expected[$status->value]);
+        }
+    });
+
+    it('identifies statuses hidden from default listing', function () {
+        expect(OsStatus::Rejected->isHiddenFromDefaultListing())->toBeTrue();
+        expect(OsStatus::ExecutionFinished->isHiddenFromDefaultListing())->toBeTrue();
+        expect(OsStatus::DeliveredAndFinalized->isHiddenFromDefaultListing())->toBeTrue();
+
+        expect(OsStatus::Created->isHiddenFromDefaultListing())->toBeFalse();
+        expect(OsStatus::InAnalysis->isHiddenFromDefaultListing())->toBeFalse();
+        expect(OsStatus::PendingApproval->isHiddenFromDefaultListing())->toBeFalse();
+        expect(OsStatus::InRenegotiation->isHiddenFromDefaultListing())->toBeFalse();
+        expect(OsStatus::Approved->isHiddenFromDefaultListing())->toBeFalse();
+        expect(OsStatus::InExecution->isHiddenFromDefaultListing())->toBeFalse();
+    });
+
+    it('does not change isTerminal semantics for ExecutionFinished', function () {
+        expect(OsStatus::ExecutionFinished->isTerminal())->toBeFalse();
     });
 });

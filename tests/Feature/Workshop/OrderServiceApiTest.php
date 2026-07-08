@@ -15,40 +15,40 @@ describe('OrderService API — full lifecycle', function () {
     beforeEach(function () {
         Mail::fake();
 
-        $this->attendant  = User::factory()->create(['role' => UserRole::Attendant]);
-        $this->mechanic   = User::factory()->create(['role' => UserRole::Mechanic]);
+        $this->attendant = User::factory()->create(['role' => UserRole::Attendant]);
+        $this->mechanic = User::factory()->create(['role' => UserRole::Mechanic]);
         $this->storekeeper = User::factory()->create(['role' => UserRole::Storekeeper]);
 
         $this->customer = CustomerModel::create([
-            'name'     => 'Carlos OS Test',
+            'name' => 'Carlos OS Test',
             'document' => '52998224725',
-            'email'    => 'carlos@test.com',
+            'email' => 'carlos@test.com',
         ]);
 
         $this->vehicle = VehicleModel::create([
             'customer_id' => $this->customer->id,
-            'plate'       => 'TST-0001',
-            'brand'       => 'Toyota',
-            'model'       => 'Corolla',
-            'year'        => 2022,
-            'color'       => 'Prata',
+            'plate' => 'TST-0001',
+            'brand' => 'Toyota',
+            'model' => 'Corolla',
+            'year' => 2022,
+            'color' => 'Prata',
         ]);
 
         $this->service = ServiceModel::create([
-            'name'               => 'Troca de Óleo',
-            'base_price'         => 80.00,
-            'estimated_minutes'  => 30,
-            'description'        => 'Troca de óleo do motor.',
-            'is_active'          => true,
+            'name' => 'Troca de Óleo',
+            'base_price' => 80.00,
+            'estimated_minutes' => 30,
+            'description' => 'Troca de óleo do motor.',
+            'is_active' => true,
         ]);
 
         $this->part = PartModel::create([
-            'code'           => 'TEST-PART-001',
-            'name'           => 'Filtro de Óleo',
-            'unit_price'     => 25.00,
+            'code' => 'TEST-PART-001',
+            'name' => 'Filtro de Óleo',
+            'unit_price' => 25.00,
             'stock_quantity' => 10,
-            'minimum_stock'  => 2,
-            'unit'           => 'un',
+            'minimum_stock' => 2,
+            'unit' => 'un',
         ]);
     });
 
@@ -59,8 +59,8 @@ describe('OrderService API — full lifecycle', function () {
         return $test->actingAs($test->attendant, 'sanctum')
             ->postJson('/api/order-services', [
                 'customer_id' => $test->customer->id,
-                'vehicle_id'  => $test->vehicle->id,
-                'complaint'   => 'Barulho ao frear',
+                'vehicle_id' => $test->vehicle->id,
+                'complaint' => 'Barulho ao frear',
             ])
             ->assertCreated()
             ->json('data');
@@ -72,8 +72,8 @@ describe('OrderService API — full lifecycle', function () {
         $response = $this->actingAs($this->attendant, 'sanctum')
             ->postJson('/api/order-services', [
                 'customer_id' => $this->customer->id,
-                'vehicle_id'  => $this->vehicle->id,
-                'complaint'   => 'Carro fazendo barulho ao frear',
+                'vehicle_id' => $this->vehicle->id,
+                'complaint' => 'Carro fazendo barulho ao frear',
             ]);
 
         $response->assertCreated()
@@ -100,8 +100,8 @@ describe('OrderService API — full lifecycle', function () {
         $os = $this->actingAs($this->mechanic, 'sanctum')
             ->postJson("/api/order-services/{$os['id']}/generate-budget", [
                 'services' => [['service_id' => $this->service->id, 'quantity' => 1]],
-                'parts'    => [['part_id' => $this->part->id, 'quantity' => 2]],
-                'notes'    => 'Óleo e filtro',
+                'parts' => [['part_id' => $this->part->id, 'quantity' => 2]],
+                'notes' => 'Óleo e filtro',
             ])
             ->assertOk()
             ->json('data');
@@ -156,7 +156,7 @@ describe('OrderService API — full lifecycle', function () {
         $this->actingAs($this->mechanic, 'sanctum')
             ->postJson("/api/order-services/{$os['id']}/generate-budget", [
                 'services' => [['service_id' => $this->service->id, 'quantity' => 1]],
-                'parts'    => [],
+                'parts' => [],
             ]);
 
         // Reject budget → IN_RENEGOTIATION
@@ -185,7 +185,7 @@ describe('OrderService API — full lifecycle', function () {
         $this->actingAs($this->mechanic, 'sanctum')
             ->postJson("/api/order-services/{$os['id']}/generate-budget", [
                 'services' => [['service_id' => $this->service->id, 'quantity' => 1]],
-                'parts'    => [],
+                'parts' => [],
             ]);
 
         $this->actingAs($this->attendant, 'sanctum')
@@ -215,7 +215,7 @@ describe('OrderService API — full lifecycle', function () {
         $this->actingAs($this->mechanic, 'sanctum')
             ->postJson("/api/order-services/{$os['id']}/generate-budget", [
                 'services' => [['service_id' => $this->service->id, 'quantity' => 1]],
-                'parts'    => [],
+                'parts' => [],
             ]);
 
         $this->actingAs($this->attendant, 'sanctum')
@@ -223,10 +223,10 @@ describe('OrderService API — full lifecycle', function () {
 
         // Inject a part request linked to this OS in a non-terminal status
         PartRequestModel::create([
-            'status'               => 'reserved',
+            'status' => 'reserved',
             'requested_by_user_id' => $this->mechanic->id,
-            'os_id'                => $os['id'],
-            'notes'                => null,
+            'os_id' => $os['id'],
+            'notes' => null,
         ]);
 
         $this->actingAs($this->mechanic, 'sanctum')
@@ -253,7 +253,59 @@ describe('OrderService API — full lifecycle', function () {
         $this->actingAs($this->mechanic, 'sanctum')
             ->postJson("/api/order-services/{$os['id']}/generate-budget", [
                 'services' => [],
-                'parts'    => [],
+                'parts' => [],
+            ])
+            ->assertStatus(422);
+    });
+
+    // ── Requested items at creation (no pricing, no budget) ────────────────
+
+    it('creates OS with requested services and parts without generating a budget', function () {
+        $response = $this->actingAs($this->attendant, 'sanctum')
+            ->postJson('/api/order-services', [
+                'customer_id' => $this->customer->id,
+                'vehicle_id' => $this->vehicle->id,
+                'complaint' => 'Barulho ao frear',
+                'services' => [['service_id' => $this->service->id, 'quantity' => 1]],
+                'parts' => [['part_id' => $this->part->id, 'quantity' => 2]],
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'created')
+            ->assertJsonPath('data.budget', null)
+            ->assertJsonPath('data.requested_services.0.service_id', $this->service->id)
+            ->assertJsonPath('data.requested_services.0.quantity', 1)
+            ->assertJsonPath('data.requested_parts.0.part_id', $this->part->id)
+            ->assertJsonPath('data.requested_parts.0.quantity', 2);
+
+        Mail::assertSentCount(1);
+    });
+
+    it('creates OS without requested items when services/parts are omitted', function () {
+        $os = createOs($this);
+
+        expect($os['requested_services'])->toBe([]);
+        expect($os['requested_parts'])->toBe([]);
+    });
+
+    it('rejects creation with 422 when a requested service_id does not exist', function () {
+        $this->actingAs($this->attendant, 'sanctum')
+            ->postJson('/api/order-services', [
+                'customer_id' => $this->customer->id,
+                'vehicle_id' => $this->vehicle->id,
+                'complaint' => 'Teste',
+                'services' => [['service_id' => 999999, 'quantity' => 1]],
+            ])
+            ->assertStatus(422);
+    });
+
+    it('rejects creation with 422 when a requested part_id does not exist', function () {
+        $this->actingAs($this->attendant, 'sanctum')
+            ->postJson('/api/order-services', [
+                'customer_id' => $this->customer->id,
+                'vehicle_id' => $this->vehicle->id,
+                'complaint' => 'Teste',
+                'parts' => [['part_id' => 999999, 'quantity' => 1]],
             ])
             ->assertStatus(422);
     });
@@ -277,6 +329,59 @@ describe('OrderService API — full lifecycle', function () {
         });
     });
 
+    it('lists order services ordered by public status priority then created_at ascending', function () {
+        $execOs = OrderServiceModel::create([
+            'status' => 'in_execution', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Exec',
+        ]);
+        $pendingOs = OrderServiceModel::create([
+            'status' => 'pending_approval', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Pending',
+        ]);
+        $analysisOs = OrderServiceModel::create([
+            'status' => 'in_analysis', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Analysis',
+        ]);
+        $createdOs = OrderServiceModel::create([
+            'status' => 'created', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Created',
+        ]);
+
+        $ids = $this->actingAs($this->attendant, 'sanctum')
+            ->getJson('/api/order-services?per_page=50')
+            ->assertOk()
+            ->json('data.*.id');
+
+        expect($ids)->toBe([$execOs->id, $pendingOs->id, $analysisOs->id, $createdOs->id]);
+    });
+
+    it('excludes rejected, execution_finished and delivered_and_finalized OS from default listing', function () {
+        $rejected = OrderServiceModel::create(['status' => 'rejected', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Rejected']);
+        $finished = OrderServiceModel::create(['status' => 'execution_finished', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Finished']);
+        $delivered = OrderServiceModel::create(['status' => 'delivered_and_finalized', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Delivered']);
+        $active = OrderServiceModel::create(['status' => 'created', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Active']);
+
+        $ids = $this->actingAs($this->attendant, 'sanctum')
+            ->getJson('/api/order-services?per_page=50')
+            ->assertOk()
+            ->json('data.*.id');
+
+        expect($ids)->toContain($active->id);
+        expect($ids)->not->toContain($rejected->id);
+        expect($ids)->not->toContain($finished->id);
+        expect($ids)->not->toContain($delivered->id);
+
+        // Exclusão é lógica (só na listagem), não física — o registro continua existindo.
+        $this->assertDatabaseHas('order_services', ['id' => $rejected->id]);
+    });
+
+    it('includes an explicitly filtered terminal status in the listing', function () {
+        $delivered = OrderServiceModel::create(['status' => 'delivered_and_finalized', 'customer_id' => $this->customer->id, 'vehicle_id' => $this->vehicle->id, 'complaint' => 'Delivered']);
+
+        $ids = $this->actingAs($this->attendant, 'sanctum')
+            ->getJson('/api/order-services?status=delivered_and_finalized')
+            ->assertOk()
+            ->json('data.*.id');
+
+        expect($ids)->toContain($delivered->id);
+    });
+
     it('returns 404 for non-existent order service', function () {
         $this->actingAs($this->attendant, 'sanctum')
             ->getJson('/api/order-services/99999')
@@ -285,16 +390,16 @@ describe('OrderService API — full lifecycle', function () {
 
     it('rejects creation when vehicle does not belong to customer', function () {
         $otherCustomer = CustomerModel::create([
-            'name'     => 'Outro Cliente',
+            'name' => 'Outro Cliente',
             'document' => '87748024516',
-            'email'    => 'outro@test.com',
+            'email' => 'outro@test.com',
         ]);
 
         $this->actingAs($this->attendant, 'sanctum')
             ->postJson('/api/order-services', [
                 'customer_id' => $otherCustomer->id,
-                'vehicle_id'  => $this->vehicle->id, // belongs to $this->customer
-                'complaint'   => 'Teste veículo errado',
+                'vehicle_id' => $this->vehicle->id, // belongs to $this->customer
+                'complaint' => 'Teste veículo errado',
             ])
             ->assertNotFound();
     });
