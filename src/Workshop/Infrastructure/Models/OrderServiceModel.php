@@ -24,7 +24,7 @@ class OrderServiceModel extends Model
     ];
 
     protected $casts = [
-        'started_at'  => 'datetime',
+        'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];
 
@@ -41,5 +41,15 @@ class OrderServiceModel extends Model
     public function partItems(): HasMany
     {
         return $this->hasMany(OsPartItemModel::class, 'os_id');
+    }
+
+    public function requestedServiceItems(): HasMany
+    {
+        return $this->hasMany(OsRequestedServiceItemModel::class, 'os_id');
+    }
+
+    public function requestedPartItems(): HasMany
+    {
+        return $this->hasMany(OsRequestedPartItemModel::class, 'os_id');
     }
 }

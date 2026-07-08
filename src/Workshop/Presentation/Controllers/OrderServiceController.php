@@ -12,6 +12,7 @@ use Domain\Workshop\Application\UseCases\CreateOsUseCase;
 use Domain\Workshop\Application\UseCases\DeliverAndFinishOsUseCase;
 use Domain\Workshop\Application\UseCases\FinishExecutionUseCase;
 use Domain\Workshop\Application\UseCases\GenerateBudgetUseCase;
+use Domain\Workshop\Application\UseCases\ListOrderServicesUseCase;
 use Domain\Workshop\Application\UseCases\RejectBudgetUseCase;
 use Domain\Workshop\Application\UseCases\RejectRenegotiationUseCase;
 use Domain\Workshop\Application\UseCases\SendToAnalysisUseCase;
@@ -23,6 +24,7 @@ use Domain\Workshop\Presentation\Requests\GenerateBudgetRequest;
 use Domain\Workshop\Presentation\Resources\OrderServiceResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use OpenApi\Attributes as OA;
 
 #[OA\Tag(name: 'OrderServices', description: 'Ordens de Serviço — ciclo de vida completo')]
@@ -30,6 +32,7 @@ class OrderServiceController extends Controller
 {
     public function __construct(
         private readonly OrderServiceRepositoryInterface $repository,
+        private readonly ListOrderServicesUseCase $listUseCase,
         private readonly CreateOsUseCase $createUseCase,
         private readonly SendToAnalysisUseCase $sendToAnalysisUseCase,
         private readonly GenerateBudgetUseCase $generateBudgetUseCase,
@@ -49,18 +52,18 @@ class OrderServiceController extends Controller
         security: [['sanctum' => []]],
         tags: ['OrderServices'],
         parameters: [
-            new OA\Parameter(name: 'status', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['created','in_analysis','pending_approval','in_renegotiation','approved','rejected','in_execution','execution_finished','delivered_and_finalized'])),
+            new OA\Parameter(name: 'status', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['created', 'in_analysis', 'pending_approval', 'in_renegotiation', 'approved', 'rejected', 'in_execution', 'execution_finished', 'delivered_and_finalized'])),
             new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 15)),
         ],
-        responses: [new OA\Response(response: 200, description: 'Lista paginada de OS')]
+        responses: [new OA\Response(response: 200, description: 'Lista paginada de OS, ordenada por prioridade de status (Execução > Aguardando Aprovação > Diagnóstico > Recebida) e mais antigas primeiro. Sem filtro de status, OS rejeitadas/finalizadas/entregues ficam ocultas (exclusão lógica).')]
     )]
-    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         $status  = $request->input('status') ? OsStatus::from($request->input('status')) : null;
         $perPage = (int) $request->input('per_page', 15);
 
         return OrderServiceResource::collection(
-            $this->repository->paginate($status, $perPage)
+            $this->listUseCase->execute($status, $perPage)
         );
     }
 
@@ -73,13 +76,14 @@ class OrderServiceController extends Controller
         tags: ['OrderServices'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         responses: [
-            new OA\Response(response: 200, description: 'Dados da OS'),
+            new OA\Response(response: 200, description: 'Dados da OS, incluindo public_status (status simplificado de 6 estados) e requested_services/requested_parts (itens solicitados na abertura, sem preço).'),
             new OA\Response(response: 404, description: 'Não encontrada'),
         ]
     )]
     public function show(int $id): OrderServiceResource|JsonResponse
     {
         $os = $this->repository->findById($id);
+
         return $os
             ? new OrderServiceResource($os)
             : response()->json(['message' => 'Ordem de Serviço não encontrada.'], 404);
@@ -91,7 +95,6 @@ class OrderServiceController extends Controller
         path: '/api/order-services',
         summary: 'Criar nova OS (Atendente). Status inicial: CREATED',
         security: [['sanctum' => []]],
-        tags: ['OrderServices'],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -101,12 +104,31 @@ class OrderServiceController extends Controller
                     new OA\Property(property: 'vehicle_id', type: 'integer', example: 1),
                     new OA\Property(property: 'complaint', type: 'string', example: 'Carro fazendo barulho ao frear'),
                     new OA\Property(property: 'mechanic_user_id', type: 'integer', nullable: true, example: null),
+                    new OA\Property(
+                        property: 'services',
+                        description: 'Opcional. Serviços solicitados pelo cliente na abertura — sem preço, apenas informativo. O orçamento oficial é gerado depois via generate-budget.',
+                        type: 'array',
+                        items: new OA\Items(properties: [
+                            new OA\Property(property: 'service_id', type: 'integer', example: 1),
+                            new OA\Property(property: 'quantity', type: 'integer', example: 1),
+                        ])
+                    ),
+                    new OA\Property(
+                        property: 'parts',
+                        description: 'Opcional. Peças solicitadas pelo cliente na abertura — sem preço, apenas informativo. O orçamento oficial é gerado depois via generate-budget.',
+                        type: 'array',
+                        items: new OA\Items(properties: [
+                            new OA\Property(property: 'part_id', type: 'integer', example: 1),
+                            new OA\Property(property: 'quantity', type: 'integer', example: 2),
+                        ])
+                    ),
                 ]
             )
         ),
+        tags: ['OrderServices'],
         responses: [
-            new OA\Response(response: 201, description: 'OS criada'),
-            new OA\Response(response: 404, description: 'Cliente ou veículo não encontrado'),
+            new OA\Response(response: 201, description: 'OS criada (status: created). Se services/parts forem enviados, aparecem em requested_services/requested_parts na resposta, sem preço e sem gerar orçamento.'),
+            new OA\Response(response: 404, description: 'Cliente, veículo, serviço ou peça solicitada não encontrado'),
             new OA\Response(response: 422, description: 'Dados inválidos'),
         ]
     )]
@@ -155,8 +177,6 @@ class OrderServiceController extends Controller
         path: '/api/order-services/{id}/generate-budget',
         summary: 'Gerar orçamento (Mecânico). IN_ANALYSIS → PENDING_APPROVAL',
         security: [['sanctum' => []]],
-        tags: ['OrderServices'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -168,6 +188,8 @@ class OrderServiceController extends Controller
                 ]
             )
         ),
+        tags: ['OrderServices'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         responses: [
             new OA\Response(response: 200, description: 'Orçamento gerado, status PENDING_APPROVAL'),
             new OA\Response(response: 404, description: 'Não encontrada'),
@@ -177,7 +199,7 @@ class OrderServiceController extends Controller
     public function generateBudget(GenerateBudgetRequest $request, int $id): OrderServiceResource|JsonResponse
     {
         try {
-            $dto    = GenerateBudgetDTO::fromArray($id, $request->validated());
+            $dto = GenerateBudgetDTO::fromArray($id, $request->validated());
             $result = $this->generateBudgetUseCase->execute($dto);
 
             return new OrderServiceResource($result);

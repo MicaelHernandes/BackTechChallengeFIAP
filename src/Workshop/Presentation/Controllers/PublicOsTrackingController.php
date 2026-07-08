@@ -5,6 +5,7 @@ namespace Domain\Workshop\Presentation\Controllers;
 use App\Http\Controllers\Controller;
 use Domain\Customer\Infrastructure\Models\CustomerModel;
 use Domain\Customer\Infrastructure\Models\VehicleModel;
+use Domain\Workshop\Domain\Enums\OsStatus;
 use Domain\Workshop\Infrastructure\Models\OrderServiceModel;
 use Illuminate\Http\JsonResponse;
 use OpenApi\Attributes as OA;
@@ -18,7 +19,7 @@ class PublicOsTrackingController extends Controller
         tags: ['PublicTracking'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         responses: [
-            new OA\Response(response: 200, description: 'Status atual da OS'),
+            new OA\Response(response: 200, description: 'Status atual da OS, incluindo public_status (rótulo simplificado: recebida, diagnostico, aguardando_aprovacao, execucao, finalizada ou entregue). Não expõe valores financeiros do orçamento.'),
             new OA\Response(response: 404, description: 'OS não encontrada'),
         ]
     )]
@@ -31,19 +32,23 @@ class PublicOsTrackingController extends Controller
         }
 
         $customer = CustomerModel::find($model->customer_id);
-        $vehicle  = VehicleModel::find($model->vehicle_id);
+        $vehicle = VehicleModel::find($model->vehicle_id);
 
-        $status = \Domain\Workshop\Domain\Enums\OsStatus::from($model->status);
+        $status = OsStatus::from($model->status);
 
         return response()->json([
             'data' => [
-                'os_id'               => $model->id,
-                'status'              => $status->value,
-                'status_label'        => $status->label(),
-                'message'             => $status->customerNotificationMessage(),
-                'customer_name'       => $customer?->name,
-                'vehicle'             => $vehicle ? "{$vehicle->brand} {$vehicle->model} ({$vehicle->plate})" : null,
-                'is_finalized'        => $status->isTerminal(),
+                'os_id' => $model->id,
+                'status' => $status->value,
+                'status_label' => $status->label(),
+                'public_status' => [
+                    'value' => $status->toPublicStatus()->value,
+                    'label' => $status->toPublicStatus()->label(),
+                ],
+                'message' => $status->customerNotificationMessage(),
+                'customer_name' => $customer?->name,
+                'vehicle' => $vehicle ? "{$vehicle->brand} {$vehicle->model} ({$vehicle->plate})" : null,
+                'is_finalized' => $status->isTerminal(),
             ],
         ]);
     }

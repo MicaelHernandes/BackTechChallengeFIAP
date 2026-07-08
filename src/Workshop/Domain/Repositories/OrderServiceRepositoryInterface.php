@@ -10,8 +10,11 @@ interface OrderServiceRepositoryInterface
 {
     public function findById(int $id): ?OrderService;
 
-    /** @return LengthAwarePaginator<OrderService> */
-    public function paginate(?OsStatus $status, int $perPage = 15): LengthAwarePaginator;
+    /**
+     * @param  OsStatus[]  $excludeStatuses  Ignorado quando $status !== null (o filtro explícito sempre prevalece).
+     * @return LengthAwarePaginator<OrderService>
+     */
+    public function paginate(?OsStatus $status, int $perPage = 15, array $excludeStatuses = []): LengthAwarePaginator;
 
     public function save(OrderService $os): OrderService;
 }

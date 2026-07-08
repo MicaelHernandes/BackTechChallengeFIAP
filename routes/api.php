@@ -8,6 +8,7 @@ use Domain\Customer\Presentation\Controllers\VehicleController;
 use Domain\Inventory\Presentation\Controllers\PartRequestController;
 use Domain\Reports\Presentation\Controllers\ReportController;
 use Domain\Workshop\Presentation\Controllers\OrderServiceController;
+use Domain\Workshop\Presentation\Controllers\PublicBudgetApprovalController;
 use Domain\Workshop\Presentation\Controllers\PublicOsTrackingController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,16 @@ Route::prefix('auth')->group(function () {
 // ── Public routes (no authentication) ────────────────────────────────────
 Route::prefix('public')->group(function () {
     Route::get('/track/{id}', [PublicOsTrackingController::class, 'show']);
+
+    // Aprovação/rejeição de orçamento via link assinado enviado por e-mail.
+    // Middleware 'signed' (ValidateSignature) valida a assinatura e retorna
+    // 403 automaticamente se inválida/expirada.
+    Route::middleware('signed')->group(function () {
+        Route::get('order-services/{id}/approve-budget', [PublicBudgetApprovalController::class, 'approve'])
+            ->name('public.os.approve-budget');
+        Route::get('order-services/{id}/reject-budget',  [PublicBudgetApprovalController::class, 'reject'])
+            ->name('public.os.reject-budget');
+    });
 });
 
 // ── Protected routes ─────────────────────────────────────────────────────

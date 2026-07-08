@@ -43,6 +43,22 @@
         {{ $event->orderService->getStatus()->customerNotificationMessage() }}
     </div>
 
+    @if($approveUrl && $rejectUrl)
+    <div style="margin: 24px 0; text-align: center;">
+        <a href="{{ $approveUrl }}"
+           style="background:#27ae60;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-right:12px;display:inline-block;">
+            Aprovar Orçamento
+        </a>
+        <a href="{{ $rejectUrl }}"
+           style="background:#c0392b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">
+            Recusar Orçamento
+        </a>
+    </div>
+    <p style="color:#999;font-size:12px;">
+        Estes links são válidos por 7 dias. Se o orçamento já tiver sido decidido, o link deixa de funcionar.
+    </p>
+    @endif
+
     @if($event->orderService->getBudget())
     <h3>Resumo do Orçamento</h3>
     <table>
