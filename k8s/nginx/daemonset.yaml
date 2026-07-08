@@ -20,14 +20,13 @@ data:
     }
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: laravel-nginx-proxy
   namespace: laravel
   labels:
     app: laravel-nginx-proxy
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: laravel-nginx-proxy

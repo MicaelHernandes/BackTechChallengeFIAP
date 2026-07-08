@@ -15,7 +15,7 @@ resources:
   - pgsql/statefulset.yaml
 
   # Cache / Queues
-  - redis/deployment.yaml
+  - redis/statefulset.yaml
 
   # Mail (dev/staging)
   - mailpit/deployment.yaml
@@ -30,5 +30,5 @@ resources:
   - app/scheduler.yaml
   - app/hpa.yaml
 
-  # Nginx reverse proxy para acesso via Node IP:80
-  - nginx/deployment.yaml
+  # Nginx reverse proxy (DaemonSet: uma instância por node, evita SPOF)
+  - nginx/daemonset.yaml

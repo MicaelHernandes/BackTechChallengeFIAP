@@ -11,13 +11,14 @@ spec:
       storage: 2Gi
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: redis
   namespace: laravel
   labels:
     app: redis
 spec:
+  serviceName: redis
   replicas: 1
   selector:
     matchLabels:
