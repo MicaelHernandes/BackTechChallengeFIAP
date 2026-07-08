@@ -28,6 +28,7 @@ resources:
   - app/service.yaml
   - app/queue-worker.yaml
   - app/scheduler.yaml
+  - app/hpa.yaml
 
   # Nginx reverse proxy para acesso via Node IP:80
   - nginx/deployment.yaml
