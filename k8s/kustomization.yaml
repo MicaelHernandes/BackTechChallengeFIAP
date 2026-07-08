@@ -24,6 +24,7 @@ resources:
   - minio/statefulset.yaml
 
   # Aplicação Laravel
+  - app/migrate-job.yaml
   - app/deployment.yaml
   - app/service.yaml
   - app/queue-worker.yaml

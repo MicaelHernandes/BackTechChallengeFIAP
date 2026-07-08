@@ -1,0 +1,52 @@
+# Roda as migrations uma única vez por deploy, desacoplado do ciclo de vida
+# dos pods de app/HPA (evita que cada scale-up dispare "migrate --force" de
+# novo contra o Postgres).
+#
+# Como este é um Job "clássico" (kustomize sem gerador de hash), reaplique
+# assim antes de cada deploy que tenha migration nova:
+#   kubectl delete job/laravel-migrate -n laravel --ignore-not-found
+#   kubectl apply -k k8s/
+#   kubectl wait --for=condition=complete job/laravel-migrate -n laravel --timeout=120s
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: laravel-migrate
+  namespace: laravel
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-pgsql
+          image: postgres:18-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h pgsql -U $(DB_USERNAME) -d $(DB_DATABASE); do
+                echo "Aguardando PostgreSQL...";
+                sleep 2;
+              done
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: DB_USERNAME
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: DB_DATABASE
+      containers:
+        - name: laravel-migrate
+          image: backtechchallenge/laravel-app:local
+          imagePullPolicy: IfNotPresent
+          command: ["php", "artisan", "migrate", "--force"]
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+            - secretRef:
+                name: laravel-secrets

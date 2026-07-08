@@ -6,6 +6,12 @@ metadata:
 data:
   APP_NAME: "Oficina"
   APP_ENV: "production"
+  APP_DEBUG: "false"
+  # ATENÇÃO: Ajuste para o domínio/IP real de acesso externo antes de aplicar.
+  # Usado para gerar os links assinados de aprovação/rejeição de orçamento
+  # enviados por e-mail (URL::temporarySignedRoute) — se ficar com o valor
+  # padrão do .env.example, o cliente recebe um link para "localhost".
+  APP_URL: "http://CHANGE-ME.exemplo.com"
   APP_PORT: "80"
   VITE_PORT: "5173"
   LARAVEL_SAIL: "1"
@@ -19,9 +25,12 @@ data:
   DB_DATABASE: "laravel"
   DB_USERNAME: "laravel"
 
-  # Redis
+  # Redis (cache, sessão e filas)
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
+  CACHE_STORE: "redis"
+  SESSION_DRIVER: "redis"
+  QUEUE_CONNECTION: "redis"
 
   # Mail (Mailpit)
   MAIL_MAILER: "smtp"

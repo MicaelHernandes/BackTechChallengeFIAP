@@ -39,17 +39,6 @@ spec:
                   name: laravel-config
                   key: DB_DATABASE
 
-        # Roda migrations na inicialização
-        - name: laravel-migrate
-          image: backtechchallenge/laravel-app:local
-          imagePullPolicy: IfNotPresent
-          command: ["php", "artisan", "migrate", "--force"]
-          envFrom:
-            - configMapRef:
-                name: laravel-config
-            - secretRef:
-                name: laravel-secrets
-
       containers:
         - name: laravel-app
           image: backtechchallenge/laravel-app:local
