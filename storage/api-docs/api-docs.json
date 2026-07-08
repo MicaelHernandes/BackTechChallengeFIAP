@@ -1559,7 +1559,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Lista paginada de OS"
+                        "description": "Lista paginada de OS, ordenada por prioridade de status (Execução > Aguardando Aprovação > Diagnóstico > Recebida) e mais antigas primeiro. Sem filtro de status, OS rejeitadas/finalizadas/entregues ficam ocultas (exclusão lógica)."
                     }
                 },
                 "security": [
@@ -1601,6 +1601,40 @@
                                         "type": "integer",
                                         "example": null,
                                         "nullable": true
+                                    },
+                                    "services": {
+                                        "description": "Opcional. Serviços solicitados pelo cliente na abertura — sem preço, apenas informativo. O orçamento oficial é gerado depois via generate-budget.",
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "service_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "quantity": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "parts": {
+                                        "description": "Opcional. Peças solicitadas pelo cliente na abertura — sem preço, apenas informativo. O orçamento oficial é gerado depois via generate-budget.",
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "part_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "quantity": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
                                     }
                                 },
                                 "type": "object"
@@ -1610,10 +1644,10 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "OS criada"
+                        "description": "OS criada (status: created). Se services/parts forem enviados, aparecem em requested_services/requested_parts na resposta, sem preço e sem gerar orçamento."
                     },
                     "404": {
-                        "description": "Cliente ou veículo não encontrado"
+                        "description": "Cliente, veículo, serviço ou peça solicitada não encontrado"
                     },
                     "422": {
                         "description": "Dados inválidos"
@@ -1645,7 +1679,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Dados da OS"
+                        "description": "Dados da OS, incluindo public_status (status simplificado de 6 estados) e requested_services/requested_parts (itens solicitados na abertura, sem preço)."
                     },
                     "404": {
                         "description": "Não encontrada"
@@ -2021,6 +2055,82 @@
                 ]
             }
         },
+        "/api/teste": {
+            "get": {
+                "operationId": "88a910bb9aea53185ad06c3c2001a007",
+                "responses": {
+                    "200": {
+                        "description": "Retorna os dados validados do request de teste"
+                    }
+                }
+            }
+        },
+        "/api/public/order-services/{id}/approve-budget": {
+            "get": {
+                "tags": [
+                    "PublicBudgetApproval"
+                ],
+                "summary": "Cliente aprova orçamento via link assinado enviado por e-mail (sem autenticação)",
+                "operationId": "ce9eb277f54fcb7199ebcb78653f6319",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Orçamento aprovado"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "OS não encontrada"
+                    },
+                    "422": {
+                        "description": "Transição inválida (ex.: link já utilizado)"
+                    }
+                }
+            }
+        },
+        "/api/public/order-services/{id}/reject-budget": {
+            "get": {
+                "tags": [
+                    "PublicBudgetApproval"
+                ],
+                "summary": "Cliente recusa orçamento via link assinado enviado por e-mail (sem autenticação)",
+                "operationId": "f67df0c3ae5670b1fc4aaeba78ca78ce",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Orçamento recusado, OS em renegociação"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "OS não encontrada"
+                    },
+                    "422": {
+                        "description": "Transição inválida"
+                    }
+                }
+            }
+        },
         "/api/public/track/{id}": {
             "get": {
                 "tags": [
@@ -2040,7 +2150,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Status atual da OS"
+                        "description": "Status atual da OS, incluindo public_status (rótulo simplificado: recebida, diagnostico, aguardando_aprovacao, execucao, finalizada ou entregue). Não expõe valores financeiros do orçamento."
                     },
                     "404": {
                         "description": "OS não encontrada"
@@ -2091,6 +2201,10 @@
         {
             "name": "OrderServices",
             "description": "Ordens de Serviço — ciclo de vida completo"
+        },
+        {
+            "name": "PublicBudgetApproval",
+            "description": "Aprovação/rejeição pública de orçamento via link assinado (e-mail)"
         },
         {
             "name": "PublicTracking",

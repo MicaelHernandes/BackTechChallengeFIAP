@@ -128,6 +128,10 @@ created → in_analysis → pending_approval ⇄ in_renegotiation
                                      rejected
 ```
 
+- **Abertura da OS** pode já incluir `services`/`parts` desejados pelo cliente/atendente — ficam registrados como **itens solicitados** (`requested_services`/`requested_parts`), sem preço e sem gerar orçamento. O orçamento oficial continua sendo gerado depois via `generate-budget`, na etapa de diagnóstico.
+- **Status público simplificado**: todo retorno de OS traz um campo `public_status` que mapeia os 9 estados internos para 6 rótulos (`recebida`, `diagnostico`, `aguardando_aprovacao`, `execucao`, `finalizada`, `entregue`), usados na consulta de status e na priorização da listagem.
+- **Listagem priorizada**: `GET /api/order-services` ordena por prioridade de status (Execução > Aguardando Aprovação > Diagnóstico > Recebida) e, dentro da mesma prioridade, mais antigas primeiro. Sem filtro de `status`, OS rejeitadas/finalizadas/entregues ficam ocultas por padrão (exclusão lógica — os registros continuam existindo e aparecem normalmente com `?status=` explícito).
+- **Aprovação/recusa de orçamento por link assinado**: o e-mail de orçamento pendente (`pending_approval`/`in_renegotiation`) inclui dois links assinados (válidos por 7 dias) que o cliente pode clicar sem login para aprovar ou recusar — endpoints públicos que reaproveitam as mesmas regras de transição de estado.
 - Geração de orçamento com itens de serviço e peças (snapshots de preço)
 - Aprovação/rejeição pelo cliente com ciclo de renegociação
 - Guard de execução: bloqueia `start_execution` se há peças sem estoque ou solicitações pendentes
@@ -142,8 +146,9 @@ created → in_analysis → pending_approval ⇄ in_renegotiation
 
 ### Rastreamento Público
 - `GET /api/public/track/{id}` — sem autenticação
-- Exibe status, mensagem ao cliente, veículo e nome do cliente
+- Exibe status (interno e `public_status` simplificado), mensagem ao cliente, veículo e nome do cliente
 - Não expõe valores financeiros do orçamento
+- `GET /api/public/order-services/{id}/approve-budget` e `.../reject-budget` — aprovação/recusa de orçamento via link assinado enviado por e-mail, sem autenticação (protegido pela assinatura, não por login)
 
 ---
 
@@ -239,13 +244,15 @@ Para ver detalhes por arquivo:
 | `Feature/Customer/VehicleApiTest` | Feature | 6 |
 | `Feature/Catalog/PartApiTest` | Feature | 9 |
 | `Feature/Inventory/PartRequestApiTest` | Feature | 15 |
-| `Feature/Workshop/OrderServiceApiTest` | Feature | 14 |
-| `Feature/Workshop/PublicOsTrackingTest` | Feature | 6 |
+| `Feature/Workshop/OrderServiceApiTest` | Feature | 17 |
+| `Feature/Workshop/PublicOsTrackingTest` | Feature | 10 |
+| `Feature/Workshop/PublicBudgetApprovalTest` | Feature | 7 |
 | `Feature/Reports/ReportApiTest` | Feature | 8 |
 | `Unit/Customer/CpfCnpjTest` | Unit | 8 |
 | `Unit/Customer/LicensePlateTest` | Unit | 5 |
 | `Unit/Inventory/PartRequestStatusTest` | Unit | 11 |
-| `Unit/Workshop/OsStatusTest` | Unit | 15 |
+| `Unit/Workshop/OsStatusTest` | Unit | 20 |
+| `Unit/Workshop/PublicOsStatusTest` | Unit | 3 |
 
 ---
 
@@ -299,11 +306,14 @@ Exemplo de ciclo completo via API:
 5. POST /api/services                                      → cadastra serviço (catálogo)
 
 6. POST /api/order-services                                → abre OS (status: created)
+   body opcional: { "services": [...], "parts": [...] }   ← itens solicitados, sem preço
 7. POST /api/order-services/{id}/send-to-analysis          → status: in_analysis
 8. POST /api/order-services/{id}/generate-budget           → gera orçamento (status: pending_approval)
    body: { "services": [...], "parts": [...] }
+   → dispara e-mail ao cliente com links de aprovar/recusar (válidos por 7 dias)
 
 9. POST /api/order-services/{id}/approve-budget            → status: approved
+   (alternativa: cliente clica no link do e-mail → GET /api/public/order-services/{id}/approve-budget)
 
    [Se faltar peças em estoque:]
 10. POST /api/part-requests                                → cria solicitação vinculada à OS
@@ -366,9 +376,9 @@ Exemplo de ciclo completo via API:
 ### Ordens de Serviço
 | Método | Rota | Descrição |
 |---|---|---|
-| GET  | `/api/order-services` | Lista (filtro por status via `?status=`) |
-| POST | `/api/order-services` | Abre nova OS |
-| GET  | `/api/order-services/{id}` | Detalhe completo com orçamento |
+| GET  | `/api/order-services` | Lista (filtro por status via `?status=`). Ordenada por prioridade de status (Execução > Aguardando Aprovação > Diagnóstico > Recebida) e mais antigas primeiro. Sem filtro, oculta OS rejeitadas/finalizadas/entregues (exclusão lógica) |
+| POST | `/api/order-services` | Abre nova OS. Aceita opcionalmente `services`/`parts` como itens solicitados (sem preço) |
+| GET  | `/api/order-services/{id}` | Detalhe completo com orçamento, `public_status` e itens solicitados |
 | POST | `/api/order-services/{id}/send-to-analysis` | Inicia análise |
 | POST | `/api/order-services/{id}/generate-budget` | Gera orçamento |
 | POST | `/api/order-services/{id}/approve-budget` | Aprova orçamento |
@@ -390,7 +400,9 @@ Exemplo de ciclo completo via API:
 ### Público (sem autenticação)
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/public/track/{id}` | Rastreamento da OS pelo cliente |
+| GET | `/api/public/track/{id}` | Rastreamento da OS pelo cliente (inclui `public_status`) |
+| GET | `/api/public/order-services/{id}/approve-budget` | Aprova orçamento via link assinado do e-mail (protegido por assinatura, válido 7 dias) |
+| GET | `/api/public/order-services/{id}/reject-budget` | Recusa orçamento via link assinado do e-mail (protegido por assinatura, válido 7 dias) |
 
 ---
 
@@ -406,7 +418,7 @@ BackTechChallengeFIAP/
 │   ├── Models/User.php
 │   └── Providers/DomainServiceProvider  # Bindings DI + Event listeners
 ├── database/
-│   ├── migrations/                      # 13 migrations versionadas
+│   ├── migrations/                      # 19 migrations versionadas
 │   └── seeders/                         # Dados iniciais (users, catalog, customers)
 ├── resources/views/mail/                # Templates de e-mail Blade
 │   ├── inventory/
