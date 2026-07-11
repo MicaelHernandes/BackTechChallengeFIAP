@@ -1,0 +1,229 @@
+name: CI/CD
+
+# Pipeline completa exigida pelo Tech Challenge:
+#   1. Build da aplicação        -> job "tests" (composer + npm build)
+#   2. Testes automatizados      -> job "tests" (pest/phpunit contra Postgres)
+#   3. Build da imagem Docker    -> job "build-image" (push para o GHCR)
+#   4. Provisiona cluster + banco-> job "deploy" (terraform apply em infra/)
+#   5. Deploy no Kubernetes      -> job "deploy" (kubectl apply -k k8s/)
+#   6. Aplica manifestos YAML    -> job "deploy" (migrations + rollout)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  PHP_VERSION: "8.4"
+  CLUSTER_NAME: backtech-fiap
+
+jobs:
+  # ==========================================================================
+  # 1 + 2 — Build da aplicação e execução dos testes automatizados
+  # ==========================================================================
+  tests:
+    name: Build & Testes
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U laravel"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: testing
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configura PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: pdo_pgsql, pgsql, redis, bcmath, intl, mbstring, zip, pcntl
+          coverage: none
+
+      - name: Cache das dependências Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Instala dependências PHP
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepara o .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Build dos assets (Vite)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Roda as migrations
+        run: php artisan migrate --force
+
+      - name: Executa os testes (Pest)
+        run: php artisan test
+
+  # ==========================================================================
+  # 3 — Build e push da imagem Docker para o GitHub Container Registry (GHCR)
+  # ==========================================================================
+  build-image:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    needs: tests
+    if: github.event_name != 'pull_request'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Define nome da imagem (minúsculo, exigência do GHCR)
+        id: meta
+        run: echo "image=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+            ${{ steps.meta.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================================================
+  # 4 + 5 + 6 — Provisiona cluster + banco (Terraform) e faz o deploy no k8s
+  # ==========================================================================
+  deploy:
+    name: Deploy no Kubernetes
+    runs-on: ubuntu-latest
+    needs: build-image
+    if: github.event_name != 'pull_request'
+
+    permissions:
+      contents: read
+      packages: read
+
+    env:
+      IMAGE: ${{ needs.build-image.outputs.image }}
+      TAG: ${{ needs.build-image.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instala kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Instala kind CLI
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Instala kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      # --- 4. Provisiona o cluster Kubernetes e o banco de dados ---
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform apply (cluster kind + namespace + PostgreSQL)
+        working-directory: infra
+        run: terraform apply -auto-approve -input=false
+
+      - name: Exporta o KUBECONFIG do cluster
+        run: echo "KUBECONFIG=${{ github.workspace }}/infra/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Login no GHCR e carrega a imagem no cluster kind
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "$IMAGE:$TAG"
+          kind load docker-image "$IMAGE:$TAG" --name "$CLUSTER_NAME"
+
+      # --- 5 + 6. Aplica os manifestos YAML da aplicação no cluster ---
+      - name: Aponta os manifestos para a imagem recém-publicada
+        working-directory: k8s
+        run: kustomize edit set image backtechchallenge/laravel-app="$IMAGE:$TAG"
+
+      - name: Aplica os manifestos (kubectl apply -k)
+        run: kubectl apply -k k8s/
+
+      - name: Aguarda as migrations (Job laravel-migrate)
+        run: kubectl wait --for=condition=complete job/laravel-migrate -n laravel --timeout=180s
+
+      - name: Aguarda o rollout da aplicação
+        run: |
+          kubectl rollout status deploy/laravel-app -n laravel --timeout=180s
+          kubectl rollout status deploy/laravel-queue -n laravel --timeout=180s
+
+      - name: Status final do cluster
+        if: always()
+        run: |
+          echo "===== Pods ====="
+          kubectl get pods -n laravel -o wide || true
+          echo "===== Services ====="
+          kubectl get svc -n laravel || true
+          echo "===== Migrate job logs ====="
+          kubectl logs job/laravel-migrate -n laravel || true
+
+      - name: Destroi o cluster efêmero (limpa o runner)
+        if: always()
+        working-directory: infra
+        run: terraform destroy -auto-approve -input=false || true

@@ -434,5 +434,46 @@ BackTechChallengeFIAP/
 ├── tests/
 │   ├── Feature/                         # Testes de integração HTTP
 │   └── Unit/                            # Testes de unidade (domínio puro)
+├── infra/                               # IaC: Terraform (cluster kind + PostgreSQL)
+├── k8s/                                 # Manifestos Kubernetes da aplicação
+├── .github/workflows/ci-cd.yml          # Pipeline de CI/CD (GitHub Actions)
 └── storage/api-docs/api-docs.json       # Spec OpenAPI gerada
 ```
+
+## Infraestrutura como Código e CI/CD
+
+O projeto provisiona sua infraestrutura e faz deploy de forma automatizada.
+
+### Infraestrutura (Terraform — `infra/`)
+
+O Terraform provisiona um **cluster Kubernetes local** (kind) e o **banco de
+dados PostgreSQL**. Detalhes, recursos criados e passo a passo em
+[`infra/README.md`](infra/README.md).
+
+```bash
+cd infra
+terraform init
+terraform apply        # cria o cluster kind + namespace + PostgreSQL
+```
+
+### Aplicação (Kubernetes — `k8s/`)
+
+Os manifestos da aplicação (app, workers, scheduler, redis, nginx, HPA) são
+aplicados com Kustomize. Detalhes em [`k8s/README.md`](k8s/README.md).
+
+```bash
+kubectl apply -k k8s/
+```
+
+### Pipeline (GitHub Actions — `.github/workflows/ci-cd.yml`)
+
+A cada `push` na branch `master`, a pipeline executa, em ordem:
+
+1. **Build da aplicação** — instala dependências PHP e compila os assets (Vite).
+2. **Testes automatizados** — roda a suíte Pest contra um PostgreSQL real.
+3. **Build da imagem Docker** — publica no GitHub Container Registry (GHCR).
+4. **Provisiona cluster + banco** — `terraform apply` (cluster kind + PostgreSQL).
+5. **Deploy no Kubernetes** — `kubectl apply -k k8s/` com a imagem recém-publicada.
+6. **Migrations + rollout** — executa o Job de migrations e aguarda os pods subirem.
+
+> Em Pull Requests apenas os testes rodam; build e deploy acontecem só no `master`.

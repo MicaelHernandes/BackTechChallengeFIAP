@@ -1,5 +1,10 @@
 # Manifestos Kubernetes — Laravel 13 + Sail
 
+> **Banco de dados:** o PostgreSQL é provisionado via **Terraform** (`infra/`),
+> não por estes manifestos. Por isso `pgsql/` foi retirado do `kustomization.yaml`
+> (permanece na pasta apenas como referência para um deploy 100% manual).
+> Rode `terraform apply` em `infra/` **antes** de aplicar os manifestos abaixo.
+
 ## Estrutura
 
 ```
