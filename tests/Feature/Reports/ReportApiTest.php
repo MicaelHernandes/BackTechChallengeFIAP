@@ -20,28 +20,28 @@ describe('Reports API', function () {
 
     it('returns os-summary with counts and revenue', function () {
         $customer = CustomerModel::create(['name' => 'C1', 'document' => '52998224725', 'email' => 'c1@t.com']);
-        $vehicle  = VehicleModel::create(['customer_id' => $customer->id, 'plate' => 'RPT-0001', 'brand' => 'Ford', 'model' => 'Ka', 'year' => 2020, 'color' => 'Azul']);
+        $vehicle = VehicleModel::create(['customer_id' => $customer->id, 'plate' => 'RPT-0001', 'brand' => 'Ford', 'model' => 'Ka', 'year' => 2020, 'color' => 'Azul']);
 
         // One finalized OS with budget
         $os = OrderServiceModel::create([
-            'status'      => 'delivered_and_finalized',
+            'status' => 'delivered_and_finalized',
             'customer_id' => $customer->id,
-            'vehicle_id'  => $vehicle->id,
-            'complaint'   => 'Test',
+            'vehicle_id' => $vehicle->id,
+            'complaint' => 'Test',
         ]);
         BudgetModel::create([
-            'os_id'          => $os->id,
+            'os_id' => $os->id,
             'total_services' => 100.00,
-            'total_parts'    => 50.00,
-            'total_amount'   => 150.00,
+            'total_parts' => 50.00,
+            'total_amount' => 150.00,
         ]);
 
         // One open OS
         OrderServiceModel::create([
-            'status'      => 'in_analysis',
+            'status' => 'in_analysis',
             'customer_id' => $customer->id,
-            'vehicle_id'  => $vehicle->id,
-            'complaint'   => 'Test 2',
+            'vehicle_id' => $vehicle->id,
+            'complaint' => 'Test 2',
         ]);
 
         $response = $this->actingAs($this->user, 'sanctum')
@@ -70,20 +70,20 @@ describe('Reports API', function () {
     // ── Revenue by period ─────────────────────────────────────────────────
 
     it('returns revenue filtered by period', function () {
-        $customer = CustomerModel::create(['name' => 'C2', 'document' => '87748024516', 'email' => 'c2@t.com']);
-        $vehicle  = VehicleModel::create(['customer_id' => $customer->id, 'plate' => 'RPT-0002', 'brand' => 'GM', 'model' => 'Onix', 'year' => 2021, 'color' => 'Branco']);
+        $customer = CustomerModel::create(['name' => 'C2', 'document' => '87748024537', 'email' => 'c2@t.com']);
+        $vehicle = VehicleModel::create(['customer_id' => $customer->id, 'plate' => 'RPT-0002', 'brand' => 'GM', 'model' => 'Onix', 'year' => 2021, 'color' => 'Branco']);
 
         $os = OrderServiceModel::create([
-            'status'      => 'delivered_and_finalized',
+            'status' => 'delivered_and_finalized',
             'customer_id' => $customer->id,
-            'vehicle_id'  => $vehicle->id,
-            'complaint'   => 'Revisão',
+            'vehicle_id' => $vehicle->id,
+            'complaint' => 'Revisão',
         ]);
         BudgetModel::create([
-            'os_id'          => $os->id,
+            'os_id' => $os->id,
             'total_services' => 200.00,
-            'total_parts'    => 80.00,
-            'total_amount'   => 280.00,
+            'total_parts' => 80.00,
+            'total_amount' => 280.00,
         ]);
 
         $today = now()->toDateString();
@@ -107,7 +107,7 @@ describe('Reports API', function () {
     it('returns parts at or below minimum stock', function () {
         PartModel::create(['code' => 'LOW-001', 'name' => 'Peça Baixa', 'unit_price' => 10, 'stock_quantity' => 1, 'minimum_stock' => 5, 'unit' => 'un']);
         PartModel::create(['code' => 'OK-001',  'name' => 'Peça OK',    'unit_price' => 10, 'stock_quantity' => 10, 'minimum_stock' => 5, 'unit' => 'un']);
-        PartModel::create(['code' => 'ZERO-001','name' => 'Peça Zero',  'unit_price' => 10, 'stock_quantity' => 0, 'minimum_stock' => 2, 'unit' => 'un']);
+        PartModel::create(['code' => 'ZERO-001', 'name' => 'Peça Zero',  'unit_price' => 10, 'stock_quantity' => 0, 'minimum_stock' => 2, 'unit' => 'un']);
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->getJson('/api/reports/low-stock')

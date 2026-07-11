@@ -14,9 +14,9 @@ describe('Customer API', function () {
 
     it('lists customers paginated', function () {
         CustomerModel::create([
-            'name'     => 'João Teste',
+            'name' => 'João Teste',
             'document' => '52998224725',
-            'email'    => 'joao@test.com',
+            'email' => 'joao@test.com',
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -33,15 +33,15 @@ describe('Customer API', function () {
 
     it('returns a single customer', function () {
         $customer = CustomerModel::create([
-            'name'     => 'Maria Teste',
-            'document' => '87748024516',
-            'email'    => 'maria@test.com',
+            'name' => 'Maria Teste',
+            'document' => '87748024537',
+            'email' => 'maria@test.com',
         ]);
 
         $this->actingAs($this->user, 'sanctum')
             ->getJson("/api/customers/{$customer->id}")
             ->assertOk()
-            ->assertJsonPath('data.document', '877.480.245-16');
+            ->assertJsonPath('data.document', '877.480.245-37');
     });
 
     it('returns 404 for a non-existent customer', function () {
@@ -55,30 +55,30 @@ describe('Customer API', function () {
     it('creates a new customer', function () {
         $response = $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/customers', [
-                'name'     => 'Novo Cliente',
-                'document' => '60669377800',
-                'email'    => 'novo@test.com',
-                'phone'    => '(11) 91111-2222',
+                'name' => 'Novo Cliente',
+                'document' => '60669377821',
+                'email' => 'novo@test.com',
+                'phone' => '(11) 91111-2222',
             ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.name', 'Novo Cliente');
 
-        $this->assertDatabaseHas('customers', ['document' => '60669377800']);
+        $this->assertDatabaseHas('customers', ['document' => '60669377821']);
     });
 
     it('rejects creation with a duplicate document', function () {
         CustomerModel::create([
-            'name'     => 'Existente',
+            'name' => 'Existente',
             'document' => '43936566884',
-            'email'    => 'existente@test.com',
+            'email' => 'existente@test.com',
         ]);
 
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/customers', [
-                'name'     => 'Outro',
+                'name' => 'Outro',
                 'document' => '43936566884',
-                'email'    => 'outro@test.com',
+                'email' => 'outro@test.com',
             ])
             ->assertStatus(422);
     });
@@ -86,9 +86,9 @@ describe('Customer API', function () {
     it('rejects creation with invalid CPF', function () {
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/customers', [
-                'name'     => 'Inválido',
+                'name' => 'Inválido',
                 'document' => '12345678901',
-                'email'    => 'invalido@test.com',
+                'email' => 'invalido@test.com',
             ])
             ->assertStatus(422);
     });
@@ -104,14 +104,14 @@ describe('Customer API', function () {
 
     it('updates an existing customer', function () {
         $customer = CustomerModel::create([
-            'name'     => 'Antes',
-            'document' => '09791762800',
-            'email'    => 'antes@test.com',
+            'name' => 'Antes',
+            'document' => '09791762805',
+            'email' => 'antes@test.com',
         ]);
 
         $this->actingAs($this->user, 'sanctum')
             ->putJson("/api/customers/{$customer->id}", [
-                'name'  => 'Depois',
+                'name' => 'Depois',
                 'email' => 'depois@test.com',
             ])
             ->assertOk()
@@ -121,7 +121,7 @@ describe('Customer API', function () {
     it('returns 404 when updating a non-existent customer', function () {
         $this->actingAs($this->user, 'sanctum')
             ->putJson('/api/customers/99999', [
-                'name'  => 'X',
+                'name' => 'X',
                 'email' => 'x@test.com',
             ])
             ->assertNotFound();
@@ -131,9 +131,9 @@ describe('Customer API', function () {
 
     it('deletes an existing customer', function () {
         $customer = CustomerModel::create([
-            'name'     => 'Para deletar',
-            'document' => '18168055804',
-            'email'    => 'del@test.com',
+            'name' => 'Para deletar',
+            'document' => '18168055802',
+            'email' => 'del@test.com',
         ]);
 
         $this->actingAs($this->user, 'sanctum')

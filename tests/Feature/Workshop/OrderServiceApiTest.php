@@ -139,8 +139,9 @@ describe('OrderService API — full lifecycle', function () {
             ->json('data');
         expect($os['status'])->toBe('delivered_and_finalized');
 
-        // 7 status transitions + 1 create = 8 emails total
-        Mail::assertSentCount(8);
+        // 1 create + 6 status transitions (send-to-analysis, generate-budget,
+        // approve-budget, start-execution, finish-execution, deliver) = 7 emails total
+        Mail::assertSentCount(7);
     });
 
     // ── Renegotiation flow ────────────────────────────────────────────────
@@ -391,7 +392,7 @@ describe('OrderService API — full lifecycle', function () {
     it('rejects creation when vehicle does not belong to customer', function () {
         $otherCustomer = CustomerModel::create([
             'name' => 'Outro Cliente',
-            'document' => '87748024516',
+            'document' => '87748024537',
             'email' => 'outro@test.com',
         ]);
 

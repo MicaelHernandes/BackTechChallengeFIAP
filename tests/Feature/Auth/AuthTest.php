@@ -7,13 +7,13 @@ describe('Auth endpoints', function () {
 
     it('allows a user to login with valid credentials', function () {
         $user = User::factory()->create([
-            'email'    => 'test@oficina.com',
+            'email' => 'test@oficina.com',
             'password' => bcrypt('secret123'),
-            'role'     => UserRole::Admin,
+            'role' => UserRole::Admin,
         ]);
 
         $response = $this->postJson('/api/auth/login', [
-            'email'    => 'test@oficina.com',
+            'email' => 'test@oficina.com',
             'password' => 'secret123',
         ]);
 
@@ -24,12 +24,12 @@ describe('Auth endpoints', function () {
 
     it('rejects login with wrong password', function () {
         User::factory()->create([
-            'email'    => 'test2@oficina.com',
+            'email' => 'test2@oficina.com',
             'password' => bcrypt('correct'),
         ]);
 
         $response = $this->postJson('/api/auth/login', [
-            'email'    => 'test2@oficina.com',
+            'email' => 'test2@oficina.com',
             'password' => 'wrong',
         ]);
 
@@ -52,17 +52,21 @@ describe('Auth endpoints', function () {
     });
 
     it('revokes token on logout', function () {
-        $user  = User::factory()->create();
-        $token = $user->createToken('test')->plainTextToken;
+        $user = User::factory()->create();
+        $newToken = $user->createToken('test');
+        $tokenId = $newToken->accessToken->id;
 
-        $response = $this->withToken($token)
+        $response = $this->withToken($newToken->plainTextToken)
             ->postJson('/api/auth/logout');
 
         $response->assertOk();
 
-        // Token should no longer work
-        $this->withToken($token)
-            ->getJson('/api/auth/me')
-            ->assertUnauthorized();
+        // O token foi removido do banco (currentAccessToken()->delete() no AuthController).
+        // Não refazemos a chamada autenticada com o mesmo token aqui: dentro de um único
+        // teste, o guard 'sanctum' (RequestGuard) cacheia o usuário resolvido na primeira
+        // chamada e reaproveita esse cache em chamadas HTTP subsequentes do mesmo processo,
+        // mascarando a revogação — uma peculiaridade do test harness, não do comportamento
+        // real da aplicação (cada request de produção resolve o guard do zero).
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $tokenId]);
     });
 });

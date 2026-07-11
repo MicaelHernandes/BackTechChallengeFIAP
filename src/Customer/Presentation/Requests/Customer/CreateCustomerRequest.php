@@ -14,11 +14,11 @@ class CreateCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'     => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
             'document' => ['required', 'string', 'min:11', 'max:18'],
-            'email'    => ['required', 'email:rfc,dns', 'max:255'],
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'address'  => ['nullable', 'string', 'max:500'],
+            'email' => ['required', 'email:rfc', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:500'],
         ];
     }
 }

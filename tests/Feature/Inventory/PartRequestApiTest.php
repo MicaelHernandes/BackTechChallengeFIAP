@@ -3,14 +3,16 @@
 use App\Enums\UserRole;
 use App\Models\User;
 use Domain\Catalog\Infrastructure\Models\PartModel;
-use Domain\Inventory\Infrastructure\Models\PartRequestModel;
+use Domain\Customer\Infrastructure\Models\CustomerModel;
+use Domain\Customer\Infrastructure\Models\VehicleModel;
+use Domain\Workshop\Infrastructure\Models\OrderServiceModel;
 use Illuminate\Support\Facades\Mail;
 
 describe('PartRequest API — full lifecycle', function () {
 
     beforeEach(function () {
-        $this->mechanic    = User::factory()->create(['role' => UserRole::Mechanic]);
-        $this->purchasing  = User::factory()->create(['role' => UserRole::Purchasing, 'email' => 'compras@test.com']);
+        $this->mechanic = User::factory()->create(['role' => UserRole::Mechanic]);
+        $this->purchasing = User::factory()->create(['role' => UserRole::Purchasing, 'email' => 'compras@test.com']);
         $this->storekeeper = User::factory()->create(['role' => UserRole::Storekeeper]);
 
         $this->partWithStock = PartModel::create([
@@ -82,9 +84,22 @@ describe('PartRequest API — full lifecycle', function () {
     it('completes full OUT_OF_STOCK flow: purchase → receive → pick up → finalize', function () {
         Mail::fake();
 
+        // Solicitação vinculada a uma OS: pick-up deve decrementar o estoque
+        // (peças efetivamente consumidas no serviço, não uma reposição avulsa).
+        $customer = CustomerModel::create([
+            'name' => 'Cliente PartRequest', 'document' => '52998224725', 'email' => 'partrequest@test.com',
+        ]);
+        $vehicle = VehicleModel::create([
+            'customer_id' => $customer->id, 'plate' => 'PRQ-0001', 'brand' => 'Fiat', 'model' => 'Uno', 'year' => 2020, 'color' => 'Branco',
+        ]);
+        $os = OrderServiceModel::create([
+            'status' => 'created', 'customer_id' => $customer->id, 'vehicle_id' => $vehicle->id, 'complaint' => 'Teste',
+        ]);
+
         // 1. Create → OUT_OF_STOCK
         $pr = $this->actingAs($this->mechanic, 'sanctum')
             ->postJson('/api/part-requests', [
+                'os_id' => $os->id,
                 'items' => [['part_id' => $this->partNoStock->id, 'quantity' => 3]],
             ])->json('data');
 
@@ -101,7 +116,7 @@ describe('PartRequest API — full lifecycle', function () {
         $receiveResponse = $this->actingAs($this->purchasing, 'sanctum')
             ->postJson("/api/part-requests/{$pr['id']}/receive-from-supplier", [
                 'supplier_name' => 'Distribuidora ABC',
-                'items'         => [['part_request_item_id' => $itemId, 'quantity_received' => 3]],
+                'items' => [['part_request_item_id' => $itemId, 'quantity_received' => 3]],
             ]);
 
         $receiveResponse->assertOk()
@@ -109,7 +124,7 @@ describe('PartRequest API — full lifecycle', function () {
 
         // AddPartsToInventoryPolicy increments stock
         $this->assertDatabaseHas('parts', [
-            'id'             => $this->partNoStock->id,
+            'id' => $this->partNoStock->id,
             'stock_quantity' => 3, // 0 + 3
         ]);
 
@@ -123,7 +138,7 @@ describe('PartRequest API — full lifecycle', function () {
             ->assertJsonPath('data.status', 'picked_up');
 
         $this->assertDatabaseHas('parts', [
-            'id'             => $this->partNoStock->id,
+            'id' => $this->partNoStock->id,
             'stock_quantity' => 0, // 3 - 3
         ]);
 
