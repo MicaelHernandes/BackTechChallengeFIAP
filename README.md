@@ -18,6 +18,7 @@ API RESTful para gerenciamento completo de uma oficina mecânica, desenvolvida c
 - [Fluxo Principal — Ordem de Serviço](#fluxo-principal--ordem-de-serviço)
 - [Endpoints Disponíveis](#endpoints-disponíveis)
 - [Estrutura de Pastas](#estrutura-de-pastas)
+- [Arquitetura de Infraestrutura e Deploy](#arquitetura-de-infraestrutura-e-deploy)
 
 ---
 
@@ -439,6 +440,12 @@ BackTechChallengeFIAP/
 ├── .github/workflows/ci-cd.yml          # Pipeline de CI/CD (GitHub Actions)
 └── storage/api-docs/api-docs.json       # Spec OpenAPI gerada
 ```
+
+---
+
+## Arquitetura de Infraestrutura e Deploy
+
+O desenho completo da arquitetura de infraestrutura (componentes da aplicação, infraestrutura provisionada via Terraform/Kubernetes e o fluxo de deploy do CI/CD) está documentado separadamente em **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**, incluindo diagramas Mermaid do fluxo de componentes e da pipeline de deploy.
 
 ## Infraestrutura como Código e CI/CD
 
