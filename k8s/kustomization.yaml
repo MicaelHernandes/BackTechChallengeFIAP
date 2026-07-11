@@ -11,8 +11,10 @@ resources:
   - config/configmap.yaml
   - config/secret.yaml
 
-  # Banco de dados
-  - pgsql/statefulset.yaml
+  # Banco de dados: PROVISIONADO VIA TERRAFORM (infra/), não aqui.
+  # O Postgres (StatefulSet/PVC/Service "pgsql") é criado pelo `terraform apply`
+  # em infra/. O arquivo pgsql/statefulset.yaml permanece apenas como
+  # referência para deploy 100% manual sem Terraform.
 
   # Cache / Queues
   - redis/statefulset.yaml

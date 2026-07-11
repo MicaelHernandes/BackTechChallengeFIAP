@@ -1,0 +1,14 @@
+# Copie para terraform.tfvars e ajuste conforme necessário.
+# cp terraform.tfvars.example terraform.tfvars
+
+cluster_name   = "backtech-fiap"
+node_image     = "kindest/node:v1.31.2"
+worker_count   = 1
+host_http_port = 8080
+namespace      = "laravel"
+
+# Banco de dados — DEVEM bater com k8s/config/configmap.yaml e k8s/config/secret.yaml
+db_name     = "laravel"
+db_user     = "laravel"
+db_password = "secret"
+db_storage  = "10Gi"
