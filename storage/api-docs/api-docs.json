@@ -2055,16 +2055,6 @@
                 ]
             }
         },
-        "/api/teste": {
-            "get": {
-                "operationId": "88a910bb9aea53185ad06c3c2001a007",
-                "responses": {
-                    "200": {
-                        "description": "Retorna os dados validados do request de teste"
-                    }
-                }
-            }
-        },
         "/api/public/order-services/{id}/approve-budget": {
             "get": {
                 "tags": [
