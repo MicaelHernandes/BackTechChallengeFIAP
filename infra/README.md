@@ -33,10 +33,14 @@ Tech Challenge. Ao final há instruções de como migrar para a cloud.
 - [Docker](https://docs.docker.com/get-docker/) em execução
 - [Terraform >= 1.5](https://developer.hashicorp.com/terraform/install)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) (para inspecionar o cluster)
+- [kind CLI](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) (para
+  carregar imagens locais com `kind load`, veja abaixo)
 
-> Não é preciso instalar o `kind` manualmente — o provider `tehcyx/kind` baixa o
-> binário necessário. O `kind` CLI só é útil para carregar imagens locais
-> (`kind load`), o que o CI/CD já faz automaticamente.
+> Não é preciso instalar o `kind` manualmente **para criar o cluster** — o
+> provider Terraform `tehcyx/kind` baixa o binário necessário sozinho. Mas o
+> `kind` CLI continua sendo necessário localmente para o comando `kind load
+> docker-image`, que copia a imagem da aplicação para dentro do cluster (em
+> CI/CD isso já é feito automaticamente pela pipeline).
 
 ---
 
@@ -68,9 +72,28 @@ kubectl get nodes
 kubectl get pods -n laravel        # deve mostrar o pod "pgsql-0" rodando
 ```
 
-### Fazer o deploy da aplicação (após a infra)
+### Build + load da imagem da aplicação
 
-O banco já está de pé. Agora aplique os manifestos da aplicação:
+O cluster e o banco já estão de pé, mas o kind não enxerga o Docker local — ele
+roda em containers isolados. Por isso é preciso construir a imagem e carregá-la
+manualmente para dentro do cluster antes do deploy:
+
+```bash
+# na raiz do projeto
+docker build -t backtechchallenge/laravel-app:local .
+kind load docker-image backtechchallenge/laravel-app:local --name backtech-fiap
+```
+
+> `backtech-fiap` é o `cluster_name` padrão (veja a tabela de variáveis). Se
+> você alterou essa variável no `terraform.tfvars`, use o mesmo nome aqui.
+>
+> Em produção/CI esse build + load é feito automaticamente pela pipeline
+> (`.github/workflows/ci-cd.yml`) — os comandos acima são só para quem quer
+> rodar tudo localmente.
+
+### Fazer o deploy da aplicação
+
+Com a imagem já carregada no cluster, aplique os manifestos:
 
 ```bash
 # na raiz do projeto
@@ -78,9 +101,28 @@ kubectl apply -k k8s/
 kubectl rollout status deploy/laravel-app -n laravel
 ```
 
-> Em produção/CI isso é feito automaticamente pela pipeline
-> (`.github/workflows/ci-cd.yml`). Localmente, lembre de fazer o build da imagem
-> e `kind load docker-image ... --name backtech-fiap` antes do apply.
+### Resumo (copiar e colar)
+
+```bash
+# 1. infra: cluster + banco
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # opcional
+terraform init
+terraform apply
+export KUBECONFIG="$PWD/kubeconfig"
+
+# 2. imagem da aplicação
+cd ..
+docker build -t backtechchallenge/laravel-app:local .
+kind load docker-image backtechchallenge/laravel-app:local --name backtech-fiap
+
+# 3. deploy da aplicação
+kubectl apply -k k8s/
+kubectl rollout status deploy/laravel-app -n laravel
+
+# 4. acessar
+open http://localhost:8080   # ou seu navegador de preferência
+```
 
 ---
 
