@@ -93,13 +93,43 @@ kind load docker-image backtechchallenge/laravel-app:local --name backtech-fiap
 
 ### Fazer o deploy da aplicação
 
-Com a imagem já carregada no cluster, aplique os manifestos:
+Com a imagem já carregada no cluster, aplique os manifestos da aplicação **e**
+do `metrics-server` (necessário para o autoscaling, veja a seção seguinte):
 
 ```bash
 # na raiz do projeto
-kubectl apply -k k8s/
+kubectl apply -k k8s/ && kubectl apply -f k8s/addons/metrics-server.yaml
 kubectl rollout status deploy/laravel-app -n laravel
+kubectl rollout status deployment/metrics-server -n kube-system
 ```
+### Autoscaling (HPA) e métricas
+
+A aplicação tem `HorizontalPodAutoscaler`s configurados (`k8s/app/hpa.yaml`) que
+escalam `laravel-app` (2→6 réplicas) e `laravel-queue` (2→8 réplicas) por uso de
+CPU/memória.
+
+Confirme que as métricas estão chegando (leva ~15-20s após o rollout):
+
+```bash
+kubectl top pods -n laravel
+kubectl get hpa -n laravel
+```
+
+#### Testando o autoscaling (simular carga)
+
+Com as métricas funcionando, dá pra ver o HPA escalar de verdade gerando carga
+contra o app (`ab` = Apache Bench, geralmente já vem com o `httpd-tools`/`apache2-utils`):
+
+```bash
+# 200 conexões concorrentes por 90s
+ab -n 1000000 -c 200 -t 90 http://localhost:8080/
+
+# em outro terminal, acompanhe o autoscaling
+watch -n 5 'kubectl get hpa -n laravel; echo; kubectl get pods -n laravel -l app=laravel-app'
+```
+
+Depois que a carga cessa, o HPA demora ~5 min para escalar de volta (
+`stabilizationWindowSeconds: 300` no `scaleDown`, para evitar oscilação).
 
 ### Resumo (copiar e colar)
 
@@ -116,9 +146,10 @@ cd ..
 docker build -t backtechchallenge/laravel-app:local .
 kind load docker-image backtechchallenge/laravel-app:local --name backtech-fiap
 
-# 3. deploy da aplicação
-kubectl apply -k k8s/
+# 3. deploy da aplicação + metrics-server (necessário para o HPA funcionar)
+kubectl apply -k k8s/ && kubectl apply -f k8s/addons/metrics-server.yaml
 kubectl rollout status deploy/laravel-app -n laravel
+kubectl rollout status deployment/metrics-server -n kube-system
 
 # 4. acessar
 open http://localhost:8080   # ou seu navegador de preferência
