@@ -21,7 +21,11 @@ data:
       location / {
         proxy_pass http://laravel-app.laravel.svc.cluster.local:80;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        # $host NÃO inclui a porta (diferente de $http_host). Como o acesso
+        # local é em localhost:8080 (host_http_port), usar $host faz o Laravel
+        # gerar URLs absolutas sem a porta (ex.: assets do Swagger em
+        # http://localhost/... em vez de http://localhost:8080/...).
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -49,6 +53,13 @@ spec:
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        # Sem isso o DaemonSet não agenda no control-plane (que tem o taint
+        # padrão do kind). É justamente o control-plane que mapeia a porta 80
+        # para o host (ver infra/cluster.tf), então o nginx PRECISA rodar lá
+        # também, senão "localhost:<host_http_port>" não responde nada.
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
       containers:
         - name: nginx
           image: nginx:1.27-alpine
